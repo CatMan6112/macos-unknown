@@ -1,0 +1,24 @@
+.DS_Store
+__pycache__/
+.venv/
+build/
+logs/
+vendor/
+patcher/payload/
+
+# unity
+shell/Library/
+shell/Logs/
+shell/Temp/
+shell/UserSettings/
+shell/obj/
+steamlib/Library/
+steamlib/Logs/
+steamlib/Temp/
+steamlib/UserSettings/
+steamlib/obj/
+*.csproj
+*.sln
+
+out/
+/*.png
