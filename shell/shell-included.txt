@@ -1,0 +1,35 @@
+Legacy Shaders/Diffuse
+Hidden/CubeBlur
+Hidden/CubeCopy
+Hidden/CubeBlend
+Sprites/Default
+UI/Default
+UI/DefaultETC1
+Hidden/Internal-StencilWrite
+Hidden/Internal-CombineDepthNormals
+Hidden/BlitCopy
+Hidden/BlitCopyDepth
+Hidden/BlitToDepth
+Hidden/BlitToDepth_MSAA
+Hidden/BlitCopyWithDepth
+Hidden/BlitCopyHDRTonemap
+Hidden/Internal-GUITextureClip
+Hidden/Internal-GUITextureClipText
+Hidden/Internal-GUITexture
+Hidden/Internal-GUITextureBlit
+Hidden/Internal-GUIRoundedRect
+Hidden/Internal-GUIRoundedRectWithColorPerBorder
+Hidden/Internal-UIRDefault
+Hidden/Internal-UIRDefaultWorld
+Hidden/Internal-UIRAtlasBlitCopy
+Hidden/ConvertTexture
+Sprites/Mask
+Hidden/Internal-CubemapToEquirect
+Hidden/Internal-ODSWorldTexture
+Hidden/TextCore/Distance Field SSD
+Hidden/VR/BlitTexArraySlice
+Hidden/VR/BlitFromTex2DToTexArraySlice
+Hidden/Internal-DebugPattern
+Hidden/VideoComposite
+Hidden/VideoDecode
+Hidden/VideoDecodeOSX

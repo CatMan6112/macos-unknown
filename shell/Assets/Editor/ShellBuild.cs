@@ -23,7 +23,40 @@ public static class ShellBuild
         PlayerSettings.productName = "CasualtiesUnknown";
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.Mono2x);
         PlayerSettings.SetGraphicsAPIs(BuildTarget.StandaloneOSX, new[] { GraphicsDeviceType.Metal });
-        EditorUserBuildSettings.SetPlatformSettings("Standalone", "OSXUniversal", "Architecture", "ARM64");
+        // universal so intel macs work too. costs about 100 MB in the payload
+        EditorUserBuildSettings.SetPlatformSettings("Standalone", "OSXUniversal", "Architecture", "x64ARM64");
+
+        // ShaderBuild leaves its settings in this project and the game goes solid magenta
+        // so put the shell ones back
+        PlayerSettings.colorSpace = ColorSpace.Gamma;
+        var gs = new SerializedObject(GraphicsSettings.GetGraphicsSettings());
+        var list = gs.FindProperty("m_AlwaysIncludedShaders");
+        list.ClearArray();
+        int n = 0;
+        foreach (var name in System.IO.File.ReadAllLines("shell-included.txt"))
+        {
+            if (name.Trim().Length == 0) continue;
+            var s = Shader.Find(name);
+            if (s == null) { Debug.Log("SHELLBUILD MISSING: " + name); continue; }
+            list.InsertArrayElementAtIndex(n);
+            list.GetArrayElementAtIndex(n++).objectReferenceValue = s;
+        }
+        gs.ApplyModifiedProperties();
+        var glob = AssetDatabase.LoadMainAssetAtPath("Assets/UniversalRenderPipelineGlobalSettings.asset");
+        if (glob != null)
+        {
+            var so = new SerializedObject(glob);
+            foreach (var p in new[] { "m_StripDebugVariants", "m_StripUnusedPostProcessingVariants",
+                                      "m_StripUnusedVariants", "m_StripUnusedLODCrossFadeVariants",
+                                      "m_StripScreenCoordOverrideVariants" })
+            {
+                var prop = so.FindProperty(p);
+                if (prop != null) prop.boolValue = true;
+            }
+            so.ApplyModifiedProperties();
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log("SHELLBUILD INCLUDED: " + n);
 
         var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
             scenes = new[] { "Assets/Scenes/Empty.unity" },
