@@ -13,6 +13,7 @@
 // menu SetResolution calls at those seconds
 using System;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -27,6 +28,11 @@ namespace CUPort
             go.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<WindowFix>();
+
+            var saver = new GameObject("CUPortPauseSaver");
+            saver.hideFlags = HideFlags.HideAndDontSave;
+            UnityEngine.Object.DontDestroyOnLoad(saver);
+            saver.AddComponent<PauseSaver>();
         }
     }
 
@@ -62,6 +68,12 @@ namespace CUPort
                 if (Marshal.PtrToStringAnsi(object_getClassName(w)).EndsWith("PlayerWindow")) return w;
             }
             return IntPtr.Zero;
+        }
+
+        public static bool Minimized()
+        {
+            IntPtr w = Window();
+            return w != IntPtr.Zero && Send(w, S("isMiniaturized")) != IntPtr.Zero;
         }
 
         public static bool InNativeFullScreen()
@@ -278,6 +290,108 @@ namespace CUPort
             if (r == "true") return true;
             if (r == "false") return false;
             return fallback;
+        }
+    }
+
+    // pause only sets timeScale to 0 so the world kept rendering at 120 fps behind a black menu
+    // this drops to 30 once the menu is open and 10 when minimized. unpause puts the players vsync and cap back
+    //
+    // minimizing pauses the game first. CUPORT_NOSAVER=1 turns it all off and CUPORT_NOTHROTTLE=1 only skips the fps drop
+    public class PauseSaver : MonoBehaviour
+    {
+        const int PausedFps = 30;
+        const int BackgroundFps = 10;  // paused and minimized or unfocused
+        const float CheckSeconds = 0.25f;
+
+        Type handler, settings;
+        FieldInfo mainField, progressField, settingsField;
+        MethodInfo toggle;
+        bool lookedUp, throttled, wasMinimized, noThrottle;
+        int savedVsync, savedFps, setFps;
+        float nextCheck;
+
+        void Awake()
+        {
+            if (Environment.GetEnvironmentVariable("CUPORT_NOSAVER") == "1") enabled = false;
+            noThrottle = Environment.GetEnvironmentVariable("CUPORT_NOTHROTTLE") == "1";
+        }
+
+        // game types live in Assembly-CSharp which this dll doesnt reference
+        bool LookUp()
+        {
+            if (lookedUp) return handler != null;
+            lookedUp = true;
+            handler = Type.GetType("PauseHandler, Assembly-CSharp");
+            settings = Type.GetType("SettingsMenu, Assembly-CSharp");
+            if (handler == null) { Debug.Log("[CUPort] no PauseHandler; pause saver off"); return false; }
+            const BindingFlags F = BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance;
+            mainField = handler.GetField("main", F);
+            progressField = handler.GetField("pauseProgress", F);
+            toggle = handler.GetMethod("TogglePause", BindingFlags.Public | BindingFlags.Static);
+            if (settings != null) settingsField = settings.GetField("instance", F);
+            if (mainField == null || progressField == null || toggle == null)
+            {
+                Debug.Log("[CUPort] PauseHandler changed shape; pause saver off");
+                handler = null;
+                return false;
+            }
+            return true;
+        }
+
+        void Update()
+        {
+            if (Time.unscaledTime < nextCheck) return;
+            nextCheck = Time.unscaledTime + CheckSeconds;
+            if (!LookUp()) { Release(); enabled = false; return; }
+
+            // cast first or a destroyed main doesnt read as null
+            var main = mainField.GetValue(null) as UnityEngine.Object;
+            bool inWorld = main != null;
+            bool paused = inWorld && (bool)handler.GetField("isPaused").GetValue(main);
+            bool open = paused && (float)progressField.GetValue(main) >= 1f;
+            bool settingsOpen = settingsField != null && settingsField.GetValue(null) as UnityEngine.Object != null;
+
+            bool minimized = Cocoa.Minimized();
+            if (minimized && !wasMinimized && inWorld && !paused)
+            {
+                Debug.Log("[CUPort] minimized; pausing");
+                toggle.Invoke(null, null);  // game says no during death screens and worldgen
+            }
+            wasMinimized = minimized;
+
+            if (open && !settingsOpen && !noThrottle)
+                Hold(minimized || !Application.isFocused ? BackgroundFps : PausedFps);
+            else
+                Release();
+        }
+
+        void Hold(int fps)
+        {
+            if (!throttled)
+            {
+                savedVsync = QualitySettings.vSyncCount;
+                savedFps = Application.targetFrameRate;
+                throttled = true;
+                Debug.Log(string.Format("[CUPort] paused; {0} fps (was vsync {1} cap {2})", fps, savedVsync, savedFps));
+            }
+            else if (QualitySettings.vSyncCount != 0 || Application.targetFrameRate != setFps)
+            {
+                // game or console changed them while held so those win on unpause
+                if (QualitySettings.vSyncCount != 0) savedVsync = QualitySettings.vSyncCount;
+                if (Application.targetFrameRate != setFps) savedFps = Application.targetFrameRate;
+            }
+            setFps = fps;
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = fps;
+        }
+
+        void Release()
+        {
+            if (!throttled) return;
+            throttled = false;
+            QualitySettings.vSyncCount = savedVsync;
+            Application.targetFrameRate = savedFps;
+            Debug.Log(string.Format("[CUPort] unpaused; vsync {0} cap {1}", savedVsync, savedFps));
         }
     }
 }
