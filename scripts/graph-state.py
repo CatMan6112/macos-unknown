@@ -1,4 +1,4 @@
-"""per shader graph pass, name, LightMode, blend, zwrite/ztest/cull and the blob
+"""for each shader graph pass its name/LightMode/blend/zwrite/ztest/cull and the blob
 index of each vertex/fragment variant with its keywords
 usage: graph-state.py <Data> [name...]"""
 import sys, UnityPy

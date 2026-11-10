@@ -1,6 +1,6 @@
 #!/bin/zsh
-# builds build/CU.app, Shell.app plus a copy of the game data with the windows
-# bits swapped out. only reads the crossover install, never writes to it
+# builds build/CU.app which is Shell.app plus a copy of the game data with the
+# windows bits swapped out. only reads the crossover install and never writes to it
 set -e
 ROOT=${0:A:h:h}
 B="$ROOT/build"
@@ -15,14 +15,14 @@ mv "$R/Data" "$R/Data.shell"
 ditto "$G" "$R/Data"
 D="$R/Data"
 
-# windows native plugins (steam_api64, NativeNamedPipe, Burst) are useless here
+# windows native plugins like steam_api64 and NativeNamedPipe and Burst are useless here
 rm -rf "$D/Plugins"
 
-# builtin resources come from the shell build, those are the metal ones
+# builtin resources come from the shell build cause those are the metal ones
 cp "$R/Data.shell/Resources/unity_builtin_extra" "$D/Resources/unity_builtin_extra"
 cp "$R/unity default resources" "$D/Resources/unity default resources"
 
-# the game ships windows class libs that P/Invoke kernel32, swap in the mac ones
+# the game ships windows class libs that P/Invoke kernel32 so swap in the mac ones
 for f in "$R"/Data.shell/Managed/(mscorlib|System|Mono|netstandard)*.dll(N); do
   cp "$f" "$D/Managed/${f:t}"
 done

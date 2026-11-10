@@ -1,6 +1,6 @@
 #!/bin/zsh
 # compiles cuport/CUPort.cs into patcher/payload/CUPort.dll against the mac
-# player's own class libs. needs mono (mcs), players never run this
+# players own class libs. needs mono (mcs) and players never run this
 set -e
 ROOT=${0:A:h:h}
 M=$ROOT/patcher/payload/Shell.app/Contents/Resources/Data/Managed

@@ -1,13 +1,13 @@
-"""turns the game's shader graphs from D3D11 bytecode back into HLSL unity can
-compile for metal, one .shader per graph
+"""turns the games shader graphs from D3D11 bytecode back into HLSL unity can
+compile for metal with one .shader per graph
 
 usage: dx2hlsl.py <game Data> <out dir> [graph name ...]
 
 goes instruction by instruction. registers are uint4 so the integer hash math
 stays bit exact. cbuffer reads get renamed to the real unity uniforms from the
-reflection data. the "Sprite Lit" pass has 16 light variants, so instead of
-translating all of them its rebuilt from the forward pass plus URP's own
-CombinedShapeLightShared, same as shader graph does it
+reflection data. the Sprite Lit pass has 16 light variants so instead of
+translating all of them its rebuilt from the forward pass plus URPs own
+CombinedShapeLightShared the same way shader graph does it
 """
 import sys, struct, pathlib, collections
 import UnityPy, lz4.block
@@ -15,7 +15,7 @@ import UnityPy, lz4.block
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from dxbc import OPS, container  # noqa: E402
 
-# stuff URP's Core.hlsl and friends already declare, dont redeclare
+# stuff URPs Core.hlsl and friends already declare so dont redeclare it
 BUILTIN = {
     "_TimeParameters", "_ScaledScreenParams", "_GlobalMipBias", "_ProjectionParams", "_ScreenParams",
     "_WorldSpaceCameraPos", "unity_MatrixVP", "unity_MatrixInvVP", "unity_MatrixV", "unity_MatrixInvV",
@@ -160,9 +160,9 @@ def parse_program(dx):
 
 # reflection
 
-# inline sampler flags, filter in bits 0-1 and wrap U/V/W in bits 2-7 (TextureWrapMode).
-# figured out by lining up the game's flags 0, 1, 84, 85 with the donor's
-# sampler_PointRepeat, LinearRepeat, PointClamp and LinearClamp
+# inline sampler flags. filter is in bits 0-1 and wrap U/V/W is in bits 2-7 (TextureWrapMode)
+# figured out by lining up the games flags 0/1/84/85 with the donors
+# sampler_PointRepeat/LinearRepeat/PointClamp/LinearClamp
 FILTER = {0: "Point", 1: "Linear", 2: "Trilinear"}
 WRAP = {0: "Repeat", 1: "Clamp", 2: "Mirror", 3: "MirrorOnce"}
 
@@ -175,7 +175,7 @@ def inline_sampler(flags):
 
 
 class Refl:
-    """names for one program's cbuffer registers, textures and samplers"""
+    """names for one programs cbuffer registers plus its textures and samplers"""
     def __init__(self, prog, names):
         cp = prog["m_CommonParameters"]
         self.cb = {}  # (slot, reg, comp) -> expression
@@ -447,7 +447,7 @@ class Translator:
 # shader assembly
 
 def sig_fields(sig, prefix):
-    """struct fields for a signature, plus (reg, comp) -> field component"""
+    """struct fields for a signature plus (reg, comp) -> field component"""
     fields, comp = [], {}
     used = collections.Counter()
     for e in sig:
@@ -501,7 +501,7 @@ def translate_pass(g, pas, names, uniforms, textures, extra_out=None):
             uniforms[n] = (cbn, ty, arr)
     vin, vin_comp = sig_fields(vs["in"], "v")
     v2f, v2f_comp = sig_fields(vs["out"], "o")
-    # fragment inputs: map by semantic to the vertex outputs
+    # fragment inputs map by semantic to the vertex outputs
     by_sem = {(e["name"].upper(), e["index"]): e for e in vs["out"]}
     fin_comp = {}
     for e in ps["in"]:
@@ -510,7 +510,7 @@ def translate_pass(g, pas, names, uniforms, textures, extra_out=None):
             if not e["mask"] & (1 << c): continue
             if ve is None:
                 continue
-            # assumes the same component layout, unity links them that way anyway
+            # assumes the same component layout but unity links them that way anyway
             fin_comp[(e["reg"], c)] = "i." + v2f_comp[(ve["reg"], c)]
     L = []
     L.append("struct CUG_VSIn {")
@@ -536,7 +536,7 @@ def translate_pass(g, pas, names, uniforms, textures, extra_out=None):
     L += vb
     L.append("#undef CUG_RET")
     L.append("}")
-    # output packer, declared before CUG_VS
+    # output packer goes before CUG_VS
     pk = ["CUG_V2F CUG_VS_Out(CUG_V2F O" + "".join(f", uint4 o{k}" for k in range(nout)) + ")", "{"]
     for ty, fn, sem, e in v2f:
         cs = [k for k in range(4) if e["mask"] & (1 << k)]

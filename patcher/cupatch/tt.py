@@ -1,4 +1,4 @@
-"""json for UnityPy typetrees, they mix raw bytes in with normal values so plain json chokes"""
+"""json for UnityPy typetrees. they mix raw bytes in with normal values so plain json chokes"""
 import base64
 
 

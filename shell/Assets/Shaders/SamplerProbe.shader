@@ -1,5 +1,5 @@
 // game never uses this. its only here so the compiled m_Samplers flags show how
-// unity encodes inline sampler names, thats where dx2hlsl.py's table came from
+// unity encodes inline sampler names. thats where dx2hlsl.py's table came from
 Shader "CU/SamplerProbe"
 {
     SubShader

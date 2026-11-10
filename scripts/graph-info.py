@@ -1,4 +1,4 @@
-"""pass names, tags and texture props for every shader graph"""
+"""pass names plus tags and texture props for every shader graph"""
 import sys, UnityPy
 env = UnityPy.load(sys.argv[1])
 for obj in env.objects:

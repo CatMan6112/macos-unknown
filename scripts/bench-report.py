@@ -23,7 +23,7 @@ def window(name):
     return p(a), p(b)
 
 def top_cpu(name):
-    # mean %CPU and POWER per process, first top frame skipped cause its junk
+    # mean %CPU and POWER per process. first top frame gets skipped cause its junk
     frames = (d / f"{name}-top.txt").read_text().split("Processes:")[2:]
     procs = {}
     for f in frames:

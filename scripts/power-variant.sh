@@ -1,7 +1,7 @@
 #!/bin/zsh
 # power-variant.sh <name> <app> <json settings overrides> [player args...]
-# throwaway home with my settings plus overrides, 10 s warmup then 15 s of macmon
-# samples. prints mean GPU power, clock, busy, scaled load and CPU power
+# throwaway home with my settings plus overrides. 10 s warmup then 15 s of macmon
+# samples. prints mean GPU power/clock/busy/scaled load and CPU power
 set -e
 name=$1 app=$2 over=$3; shift 3
 ROOT=${0:A:h:h}

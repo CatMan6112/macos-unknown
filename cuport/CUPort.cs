@@ -1,16 +1,16 @@
-// CUPort.dll, mac startup fixes for C:U. gets in through ScriptingAssemblies.json
+// CUPort.dll has the mac startup fixes for C:U. it gets in through ScriptingAssemblies.json
 // and RuntimeInitializeOnLoads.json so the game code stays untouched
 //
 // settings.json from a retina or windows build can save a size bigger than this
-// screen, so the window opens half off screen or fullscreen renders way too many
+// screen so the window opens half off screen or fullscreen renders way too many
 // pixels. once the screen settles this clamps the size and applies it once
 //
 // window mode switching is fine as long as allowFullscreenSwitch is on (build.py
 // does it). without it the NSWindow gets stuck in fullscreen every fucking time
 //
-// grep Player.log for [CUPort]. CUPORT_NOFIX=1 logs, and doesnt touch anything.
-// CUPORT_TEST="4:Windowed:1280x720;9:FullScreenWindow:1512x982" fakes options menu
-// SetResolution calls at those seconds
+// grep Player.log for [CUPort]. CUPORT_NOFIX=1 only logs and doesnt touch anything
+// CUPORT_TEST set to 4:Windowed:1280x720;9:FullScreenWindow:1512x982 fakes options
+// menu SetResolution calls at those seconds
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -48,8 +48,8 @@ namespace CUPort
 
         static IntPtr S(string n) { return sel_registerName(n); }
 
-        // the real one is PlayerWindow, the rest are appkit fullscreen junk.
-        // cant use mainWindow, its nil when the app is in the background
+        // the real one is PlayerWindow and the rest are appkit fullscreen junk
+        // cant use mainWindow cause its nil when the app is in the background
         static IntPtr Window()
         {
             IntPtr app = Send(objc_getClass("NSApplication"), S("sharedApplication"));
@@ -70,7 +70,7 @@ namespace CUPort
             return w != IntPtr.Zero && ((ulong)Send(w, S("styleMask")) & FullScreenMask) != 0;
         }
 
-        // biggest the content can get, screen minus menu bar, dock and title bar
+        // biggest the content can get after the menu bar dock and title bar
         public static bool MaxContent(out int width, out int height)
         {
             width = height = 0;
@@ -86,8 +86,8 @@ namespace CUPort
             return width > 0 && height > 0;
         }
 
-        // SetResolution leaves a too big window hanging off screen, so just set
-        // the frame ourselves, centered, no zoom animation
+        // SetResolution leaves a too big window hanging off screen so just set
+        // the frame ourselves centered with no zoom animation
         public static bool Resize(int width, int height)
         {
             IntPtr w = Window();
@@ -138,7 +138,7 @@ namespace CUPort
         }
 
         // same list the game pulls its default size from. retina off means its
-        // in points, same as the window
+        // in points like the window
         static Resolution Largest()
         {
             Resolution[] all = Screen.resolutions;
@@ -211,7 +211,7 @@ namespace CUPort
             Screen.SetResolution(tw, th, tmode);
         }
 
-        // what the game applied from settings.json, clamped to fit
+        // what the game applied from settings.json clamped to fit
         bool LoadTarget()
         {
             string path = Path.Combine(Application.persistentDataPath, "settings.json");

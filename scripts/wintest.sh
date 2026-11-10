@@ -1,7 +1,7 @@
 #!/bin/zsh
 # wintest.sh <name> <app> [player args...]
-# launch, wait 10 s, sample GPU use and game CPU every second for 20 s, screenshot,
-# quit. results land in out/wintest, or $CUPORT_OUT/wintest
+# launches then waits 10 s and samples GPU use and game CPU every second for 20 s.
+# then screenshot and quit. results land in out/wintest or $CUPORT_OUT/wintest
 set -e
 name=$1 app=$2; shift 2
 ROOT=${0:A:h:h}

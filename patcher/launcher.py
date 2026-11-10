@@ -3,7 +3,8 @@
 when the dune lowky such a cutie you lowky jus pet
 """
 
-import json, os, pathlib, queue, re, shutil, subprocess, sys, threading, time
+import json, os, pathlib, queue, re, shutil, ssl, subprocess, sys, tempfile, threading, time
+import urllib.request
 import tkinter as tk
 import tkinter.font as tkfont
 
@@ -18,8 +19,15 @@ CONSOLE_LOG = STEAM / "logs/console_log.txt"
 APP = pathlib.Path(os.environ.get("CUPORT_APP", pathlib.Path.home() / "Applications/Casualties Unknown.app"))
 EDITIONS = {"full": (cubuild.FULL, 4576491), "demo": (cubuild.DEMO, 4576511)}
 
-W, H = 440, 268
-INK, FILL, DIM = "#000000", "#0000cc", "#a0a0a0"
+W, H = 440, 282
+INK, FILL, DIM, LINK = "#000000", "#0000cc", "#a0a0a0", "#0000ee"
+SITE = "https://catman6112.dev"
+
+VERSION = "0.1.0"
+RELEASES = "https://api.github.com/repos/CatMan6112/macos-unknown/releases/latest"
+SETTINGS = pathlib.Path.home() / "Library/Application Support/macos-unknown/launcher.json"
+# python.org builds ship without CA certs, every mac has this one
+TLS = ssl.create_default_context(cafile="/etc/ssl/cert.pem")
 
 # build log line -> how far the bar jumps when that step starts
 STEPS = {"checking engine version": 0.02, "copying the macOS player": 0.06,
@@ -41,7 +49,7 @@ def console_lines():
 
 
 def depot_events(depot, since=0):
-    # last download state for a depot in steam's console log, starting at line `since`
+    # last download state for a depot in steams console log from the since line on
     state = {}
     for line in console_lines()[since:]:
         if f"depot {depot} (" in line and "Downloading" in line:
@@ -62,17 +70,104 @@ def built_info():
         return None
 
 
-FONT = SMALL = BIG = ITALIC = None
+def load_settings():
+    try:
+        return json.loads(SETTINGS.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(d):
+    try:
+        SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        SETTINGS.write_text(json.dumps(d, indent=1))
+    except OSError:
+        pass
+
+
+def own_bundle():
+    # the .app were running from, only exists once pyinstaller wraps us
+    if os.environ.get("CUPORT_SELF"):
+        return pathlib.Path(os.environ["CUPORT_SELF"])
+    if getattr(sys, "frozen", False):
+        app = pathlib.Path(sys.executable).resolve().parents[2]
+        if app.suffix == ".app":
+            return app
+    return None
+
+
+def ver(tag):
+    return tuple(int(n) for n in re.findall(r"\d+", tag))
+
+
+def fetch(url, accept="application/vnd.github+json"):
+    req = urllib.request.Request(url, headers={"User-Agent": "macos-unknown-launcher", "Accept": accept})
+    return urllib.request.urlopen(req, timeout=10, context=TLS)
+
+
+def newer_release():
+    # latest release if its newer than us and has a zip on it, otherwise None
+    with fetch(RELEASES) as r:
+        rel = json.load(r)
+    tag = rel.get("tag_name", "")
+    zips = [a for a in rel.get("assets", []) if a.get("name", "").endswith(".zip")]
+    if not zips or not ver(tag) or ver(tag) <= ver(VERSION):
+        return None
+    return {"tag": tag, "url": zips[0]["browser_download_url"], "size": zips[0].get("size") or 0}
+
+
+def install_update(rel, bundle, progress):
+    # download the zip, unpack it next to us, then swap the bundles
+    work = pathlib.Path(tempfile.mkdtemp(prefix="cuport-update-"))
+    zp = work / "update.zip"
+    with fetch(rel["url"], accept="application/octet-stream") as r, open(zp, "wb") as f:
+        total = int(r.headers.get("Content-Length") or rel["size"] or 0)
+        got = 0
+        while chunk := r.read(1 << 16):
+            f.write(chunk)
+            got += len(chunk)
+            if total:
+                progress(0.9 * got / total)
+    progress(0.92)
+    out = work / "unpacked"
+    # ditto keeps the code signature and symlinks intact, zipfile does not
+    if subprocess.run(["ditto", "-x", "-k", str(zp), str(out)], capture_output=True).returncode:
+        raise RuntimeError("the download was damaged")
+    apps = list(out.glob("*.app"))
+    if len(apps) != 1:
+        raise RuntimeError("the release zip has no app in it")
+    progress(0.96)
+    # stage on the same disk so the final swap is a plain rename
+    staged = bundle.with_name(bundle.stem + ".update.app")
+    if staged.exists():
+        shutil.move(str(staged), str(pathlib.Path.home() / ".Trash" / f"{staged.stem} {time.strftime('%H%M%S')}.app"))
+    shutil.move(str(apps[0]), str(staged))
+    old = pathlib.Path.home() / ".Trash" / f"{bundle.stem} {VERSION}.app"
+    if old.exists():
+        old = old.with_name(f"{bundle.stem} {VERSION} {time.strftime('%H%M%S')}.app")
+    shutil.move(str(bundle), str(old))  # old launcher goes to the trash, same as old builds
+    try:
+        staged.rename(bundle)
+    except OSError:
+        shutil.move(str(old), str(bundle))
+        raise
+    shutil.rmtree(work, ignore_errors=True)  # only our own temp folder
+    progress(1.0)
+
+
+FONT = SMALL = BIG = ITALIC = UNDER = None
 
 
 def make_fonts():
-    global FONT, SMALL, BIG, ITALIC
+    global FONT, SMALL, BIG, ITALIC, UNDER
     base = tkfont.nametofont("TkDefaultFont")
     SMALL = base.copy()
     FONT = base.copy()
     FONT.configure(weight="bold")
     ITALIC = base.copy()
     ITALIC.configure(slant="italic")
+    UNDER = base.copy()
+    UNDER.configure(underline=True)
     BIG = base.copy()
     BIG.configure(weight="bold", size=22)
 
@@ -130,7 +225,7 @@ class Bar:
 
 
 class ProgressWindow:
-    # pops up over the launcher while something runs, like windows does
+    # pops up over the launcher while something runs like windows does
     PW, PH = 360, 50
 
     def __init__(self, root, title):
@@ -182,7 +277,7 @@ class SteamNotice:
         body = cv.create_text(mid, 20, text=NOTICE, font=SMALL, fill=INK,
                               width=self.NW - 40, justify="center", anchor="n")
         y = cv.bbox(body)[3] + 18
-        # last line is three pieces so "own" can be italic
+        # last line is three pieces so the word own can be italic
         parts = [("(you do have to.. actually ", SMALL), ("own", ITALIC), (" the game though.)", SMALL)]
         x = mid - sum(f.measure(t) for t, f in parts) / 2
         for t, f in parts:
@@ -210,6 +305,45 @@ class SteamNotice:
         self.on_continue()
 
 
+class UpdatePrompt:
+    UW = 280
+
+    def __init__(self, root, on_yes, on_no):
+        self.on_yes, self.on_no = on_yes, on_no
+        self.win = win = tk.Toplevel(root, bg="#ffffff")
+        win.title("Update")
+        win.resizable(False, False)
+        win.transient(root)
+        win.protocol("WM_DELETE_WINDOW", self.no)
+        height = 100
+        cv = tk.Canvas(win, width=self.UW, height=height, bg="#ffffff",
+                       highlightthickness=0, bd=0)
+        cv.pack()
+        mid = self.UW / 2
+        cv.create_text(mid, 32, text="do u wanna update? :3", font=FONT, fill=INK)
+        Button(cv, mid - 92, 58, 84, "No", self.no)
+        Button(cv, mid + 8, 58, 84, "Yes", self.yes)
+        root.update_idletasks()
+        win.geometry(f"+{root.winfo_rootx() + (W - self.UW) // 2}"
+                     f"+{root.winfo_rooty() + (H - height) // 2}")
+        win.bind("<Return>", lambda _e: self.yes())
+        win.bind("<Escape>", lambda _e: self.no())
+        win.grab_set()
+        win.after(50, lambda: (win.lift(), win.focus_force(), cv.focus_set()))
+
+    def close(self):
+        self.win.grab_release()
+        self.win.destroy()
+
+    def yes(self):
+        self.close()
+        self.on_yes()
+
+    def no(self):
+        self.close()
+        self.on_no()
+
+
 class Launcher:
     def __init__(self, root):
         self.root = root
@@ -229,7 +363,7 @@ class Launcher:
         has_full, has_demo = depot_dir("full").exists(), depot_dir("demo").exists()
         self.edition = "demo" if has_demo and not has_full else "full"
         self.radios = {}
-        # edition label and both radios, centered as one row
+        # edition label and both radios centered as one row
         items = [("label", "Edition", FONT), ("full", "Full game", SMALL), ("demo", "Demo", SMALL)]
         widths = [f.measure(t) + (0 if k == "label" else 18) for k, t, f in items]
         x = mid - (sum(widths) + 20 * (len(items) - 1)) / 2
@@ -246,6 +380,16 @@ class Launcher:
                 self.radios[k] = dot
             x += w + 20
 
+        self.settings = load_settings()
+        bx0, by0 = 10, 14
+        box = cv.create_rectangle(bx0, by0 - 6, bx0 + 12, by0 + 6, outline=INK, fill="#ffffff")
+        self.tick_mark = cv.create_line(bx0 + 3, by0, bx0 + 5, by0 + 3, bx0 + 9, by0 - 3,
+                                        fill=INK, width=2)
+        label = cv.create_text(bx0 + 18, by0, text="Automatic updates", font=SMALL, fill=INK, anchor="w")
+        for item in (box, self.tick_mark, label):
+            cv.tag_bind(item, "<Button-1>", lambda _e: self.set_auto(not self.auto_update()))
+        self.set_auto(self.auto_update())
+
         bw, gap = 84, 8
         bx = mid - (3 * bw + 2 * gap) / 2
         self.b_files = Button(cv, bx, 208, bw, "Get files", self.get_files)
@@ -258,14 +402,23 @@ class Launcher:
         self.dune_id = cv.create_image(-120, H + 6, image=self.dune, anchor="sw")
         cv.tag_lower(self.dune_id)
 
+        link = cv.create_text(W - 8, H - 8, text="catman6112", font=UNDER, fill=LINK, anchor="se")
+        cv.create_text(cv.bbox(link)[0], H - 8, text="made by ", font=SMALL, fill=INK, anchor="se")
+        cv.tag_bind(link, "<Button-1>", lambda _e: subprocess.run(["open", SITE]))
+        cv.tag_bind(link, "<Enter>", lambda _e: cv.configure(cursor="pointinghand"))
+        cv.tag_bind(link, "<Leave>", lambda _e: cv.configure(cursor=""))
+
         self.q = queue.Queue()
-        self.busy = None  # "download" or "build" while one is going
+        self.busy = None  # download or build while one is going
         self.popup = None
         self.watch_from = 0
         self.creep_to = 0.0
         self.pick(self.edition)
         root.after(400, self.slide_dune, 0)
         root.after(200, self.tick)
+        self.bundle = own_bundle()
+        if self.bundle and self.auto_update():
+            threading.Thread(target=self.check_thread, daemon=True).start()
 
     # state
 
@@ -305,6 +458,58 @@ class Launcher:
 
     def error(self, msg):
         self.cv.itemconfig(self.err, text=msg)
+
+    # updates
+
+    def auto_update(self):
+        return self.settings.get("auto_update", True)
+
+    def set_auto(self, on):
+        self.settings["auto_update"] = on
+        save_settings(self.settings)
+        self.cv.itemconfig(self.tick_mark, state="normal" if on else "hidden")
+
+    def check_thread(self):
+        try:
+            rel = newer_release()
+        except Exception:  # offline or github is down, try again next launch
+            return
+        if rel:
+            self.q.put(("update", rel))
+
+    def offer_update(self, rel):
+        if self.busy or self.popup:
+            return
+        UpdatePrompt(self.root, lambda: self.start_update(rel), lambda: self.set_auto(False))
+
+    def start_update(self, rel):
+        self.error("")
+        self.busy = "update"
+        self.open_popup("Update")
+        self.refresh()
+        threading.Thread(target=self.update_thread, args=(rel,), daemon=True).start()
+
+    def update_thread(self, rel):
+        try:
+            install_update(rel, self.bundle, lambda v: self.q.put(("uprog", v)))
+            self.q.put(("updated", None))
+        except Exception as e:
+            self.q.put(("upfail", str(e)))
+
+    def on_update_msg(self, kind, msg):
+        if kind == "update":
+            self.offer_update(msg)
+        elif kind == "uprog":
+            self.popup.set(msg)
+        elif kind == "updated":
+            # start the new launcher and get out of its way
+            subprocess.Popen(["open", "-n", str(self.bundle)])
+            self.root.after(300, self.root.destroy)
+        else:
+            self.busy = None
+            self.close_popup()
+            self.error(f"Update failed: {msg}")
+            self.refresh()
 
     # get files
 
@@ -361,12 +566,12 @@ class Launcher:
             APP.parent.mkdir(parents=True, exist_ok=True)
             cubuild.build(depot_dir(ed), new, appid, manifest,
                           log=lambda m: self.q.put(("log", m)))
-            if APP.exists():  # old build goes to the trash, never straight up deleted
+            if APP.exists():  # old build goes to the trash and never gets straight up deleted
                 trash = pathlib.Path.home() / ".Trash" / f"Casualties Unknown {time.strftime('%H%M%S')}.app"
                 shutil.move(str(APP), str(trash))
             new.rename(APP)
             self.q.put(("done", None))
-        except Exception as e:  # just show it to the player, nothing else we can do
+        except Exception as e:  # just show it to the player cause theres nothing else we can do
             self.q.put(("fail", str(e)))
 
     def on_build_msg(self, kind, msg):
@@ -406,7 +611,11 @@ class Launcher:
 
     def tick(self):
         while not self.q.empty():
-            self.on_build_msg(*self.q.get())
+            kind, msg = self.q.get()
+            if kind in ("update", "uprog", "updated", "upfail"):
+                self.on_update_msg(kind, msg)
+            else:
+                self.on_build_msg(kind, msg)
         if self.busy == "build" and self.popup and self.popup.value < self.creep_to:
             self.popup.set(self.popup.value + (self.creep_to - self.popup.value) * 0.02)
         if self.busy == "download":

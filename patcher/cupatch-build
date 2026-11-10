@@ -1,5 +1,5 @@
 #!/usr/bin/env python3 -I
-"""cli entry, cupatch-build <game folder> <output .app> [--appid N] [--manifest ID]"""
+"""cli entry for cupatch-build <game folder> <output .app> [--appid N] [--manifest ID]"""
 import pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from cupatch.build import main

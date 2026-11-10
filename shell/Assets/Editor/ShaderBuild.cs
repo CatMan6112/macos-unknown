@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// builds build/ShaderShell.app, the shell with every non shader graph shader the
+// builds build/ShaderShell.app. its the shell with every non shader graph shader the
 // game uses stuffed in Always Included so it compiles for metal. swap-shaders.py
 // copies them out after
 public static class ShaderBuild
@@ -15,7 +15,7 @@ public static class ShaderBuild
         // donor makes bloom and lighting bright as shit
         PlayerSettings.colorSpace = ColorSpace.Linear;
 
-        var names = File.ReadAllLines("../logs/shader-wanted.txt");
+        var names = File.ReadAllLines("shader-wanted.txt");
         var shaders = new List<Shader>();
         foreach (var n in names)
         {
@@ -35,7 +35,7 @@ public static class ShaderBuild
         }
         gs.ApplyModifiedProperties();
 
-        // keep every variant, the game uses keywords the shell never touches
+        // keep every variant cause the game uses keywords the shell never touches
         var glob = AssetDatabase.LoadMainAssetAtPath("Assets/UniversalRenderPipelineGlobalSettings.asset");
         var so = new SerializedObject(glob);
         foreach (var p in new[] { "m_StripDebugVariants", "m_StripUnusedPostProcessingVariants",

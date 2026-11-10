@@ -1,6 +1,6 @@
 #!/bin/zsh
-# cuport-test.sh <name> <app> '<json settings overrides>' [env assignments...]
-# runs the app 12 s in a throwaway home with my settings plus the overrides,
+# cuport-test.sh <name> <app> <json settings overrides> [env assignments...]
+# runs the app 12 s in a throwaway home with my settings plus the overrides
 # then dumps the [CUPort] log lines and grabs a screenshot
 set -e
 name=$1 app=$2 over=$3; shift 3

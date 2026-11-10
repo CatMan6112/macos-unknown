@@ -1,4 +1,4 @@
-"""bare bones DXBC (SM4/5) disassembler, it has RDEF names, and SHEX instructions"""
+"""bare bones DXBC (SM4/5) disassembler. it has RDEF names and SHEX instructions"""
 import struct, sys
 
 OPS = """add and break breakc call callc case continue continuec cut default deriv_rtx deriv_rty discard div dp2 dp3 dp4

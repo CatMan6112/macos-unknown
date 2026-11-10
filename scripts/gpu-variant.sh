@@ -1,6 +1,6 @@
 #!/bin/zsh
 # gpu-variant.sh <name> <app> <json overrides> [player args...]
-# throwaway home with my settings.json plus overrides, records a 15 s metal
+# throwaway home with my settings.json plus overrides. records a 15 s metal
 # system trace and prints GPU ms/frame
 set -e
 name=$1 app=$2 over=$3; shift 3

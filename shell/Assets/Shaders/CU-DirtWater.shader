@@ -1,4 +1,4 @@
-// metal stand-in for Shader Graphs/DirtWaterShader, the real code is in CULiquid.hlsl
+// metal stand-in for Shader Graphs/DirtWaterShader. the real code is in CULiquid.hlsl
 Shader "CU/DirtWater"
 {
     Properties

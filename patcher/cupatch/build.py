@@ -2,10 +2,10 @@
 
 usage: python -I -m cupatch.build <game folder> <output .app> [--appid N] [--manifest ID]
 
-<game folder> is whatever has CasualtiesUnknown_Data in it, like what steam's
-`download_depot 4576490 4576491` spits out. its read only. the app gets built
-in a staging folder next to <output .app> and moved over at the end, so a
-failed build doesnt leave half an app lying around
+<game folder> is whatever has CasualtiesUnknown_Data in it like what steams
+download_depot 4576490 4576491 spits out. its read only. the app gets built in
+a staging folder next to <output .app> and moved over at the end so a failed
+build doesnt leave half an app lying around
 """
 import argparse, gzip, json, pathlib, plistlib, shutil, subprocess, sys, time
 import UnityPy
@@ -83,12 +83,12 @@ def swap_shaders(data, log):
         elif t == "PlayerSettings":
             tt = obj.read_typetree()
             # retina off. menus pull 18.5 W of GPU at 3024x1898 vs 2 W at 1512x949
-            # on an M5, performance is ass with it on. gameplay looks the same
-            # either way, and sizes stay in points so they always fit the screen
+            # on an M5 so performance is ass with it on. gameplay looks the same
+            # either way and sizes stay in points so they always fit the screen
             tt["macRetinaSupport"] = False
             tt["resizableWindow"] = True
-            # off in the game, and on mac that breaks fullscreen -> windowed. unity
-            # says Windowed but the NSWindow just stays fullscreen at the old size, which is some bullshit
+            # off in the game and on mac that breaks fullscreen -> windowed. unity
+            # says Windowed but the NSWindow just stays fullscreen at the old size which is some bullshit
             tt["allowFullscreenSwitch"] = True
             obj.save_typetree(tt)
             changed.add(obj.assets_file)
@@ -104,12 +104,12 @@ def install_cuport(data):
     sa = json.loads(p.read_text())
     if "CUPort.dll" not in sa["names"]:
         sa["names"].append("CUPort.dll")
-        sa["types"].append(16)  # user assembly, like Assembly-CSharp
+        sa["types"].append(16)  # user assembly like Assembly-CSharp
         p.write_text(json.dumps(sa, separators=(",", ":")))
     p = data / "RuntimeInitializeOnLoads.json"
     ri = json.loads(p.read_text())
     entry = {"assemblyName": "CUPort", "nameSpace": "CUPort", "className": "Boot",
-             "methodName": "Init", "loadTypes": 1, "isUnityClass": False}  # 1: before scene load
+             "methodName": "Init", "loadTypes": 1, "isUnityClass": False}  # 1 is before scene load
     if entry not in ri["root"]:
         ri["root"].append(entry)
         p.write_text(json.dumps(ri, separators=(",", ":")))
@@ -135,11 +135,11 @@ def build(game, out, appid=FULL, manifest=None, log=print):
 
         log("copying game data")
         run("ditto", str(src), str(D))
-        shutil.rmtree(D / "Plugins", ignore_errors=True)  # windows only native plugins, useless here
+        shutil.rmtree(D / "Plugins", ignore_errors=True)  # windows only native plugins that are useless here
         # same engine version so the mac builtin resources just drop in
         shutil.copy2(shell / "Resources/unity_builtin_extra", D / "Resources/unity_builtin_extra")
         shutil.copy2(R / "unity default resources", D / "Resources/unity default resources")
-        # the game ships windows class libs that P/Invoke kernel32, swap in the mac ones
+        # the game ships windows class libs that P/Invoke kernel32 so swap in the mac ones
         for f in (shell / "Managed").glob("*.dll"):
             if f.name.startswith(("mscorlib", "System", "Mono", "netstandard")):
                 shutil.copy2(f, D / "Managed" / f.name)
@@ -157,7 +157,7 @@ def build(game, out, appid=FULL, manifest=None, log=print):
         log("installing the startup fix")
         install_cuport(D)
 
-        # on mac Application.dataPath is Contents/ and not Contents/Resources/Data, idk why the fuck
+        # on mac Application.dataPath is Contents/ and not Contents/Resources/Data idk why the fuck
         for name in ("Lang", "custommusic"):
             if (D / name).exists():
                 (C / name).symlink_to(f"Resources/Data/{name}")

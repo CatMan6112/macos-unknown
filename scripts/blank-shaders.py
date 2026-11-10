@@ -1,4 +1,4 @@
-"""swaps named shader graphs in a built app for CU/Invisible, for testing
+"""swaps named shader graphs in a built app for CU/Invisible when testing
 
 usage: python -I blank-shaders.py <app> Graph1 Graph2 ...
 edits <app> in place so only run it on a throwaway copy

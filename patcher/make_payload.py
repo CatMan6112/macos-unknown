@@ -2,11 +2,11 @@
 
 usage: .venv/bin/python -I patcher/make_payload.py
 
-reads build/Shell.app, build/ShaderShell.app and build/SteamLib.app (from the
-scripts in scripts/). writes the empty mac unity player to payload/Shell.app,
-every metal Shader from the donor to shaders.json.gz, the mac steamworks dll and
-steam_api.bundle to steam/, the icon to PlayerIcon.icns, and the engine version
-it was built for to payload.json
+reads build/Shell.app and build/ShaderShell.app and build/SteamLib.app (from
+the scripts in scripts/). the empty mac unity player goes to payload/Shell.app
+and every metal Shader from the donor goes to shaders.json.gz. the mac
+steamworks dll and steam_api.bundle go to steam/ and the icon to PlayerIcon.icns.
+the engine version it was built for goes in payload.json
 """
 import gzip, json, pathlib, shutil, subprocess, sys
 import UnityPy

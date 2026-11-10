@@ -1,4 +1,4 @@
-"""pulls the main icon out of a windows exe as .ico, plus the biggest one as .png"""
+"""pulls the main icon out of a windows exe as .ico plus the biggest one as .png"""
 import sys, struct, io, pefile
 from PIL import Image
 exe, out = sys.argv[1], sys.argv[2]

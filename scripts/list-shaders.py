@@ -1,4 +1,4 @@
-"""lists Shader objects in a Data folder with file, path_id, name and platforms"""
+"""lists Shader objects in a Data folder with file/path_id/name/platforms"""
 import sys, pathlib, UnityPy
 d = pathlib.Path(sys.argv[1])
 env = UnityPy.load(str(d))

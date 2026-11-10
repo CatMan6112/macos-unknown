@@ -1,4 +1,4 @@
-"""runs build/CU.app for N seconds (30 by default) with a log, then quits it
+"""runs build/CU.app for N seconds (30 by default) with a log then quits it
 
 usage: python3 -I scripts/run-test.py [seconds] [logname]
 """

@@ -1,4 +1,4 @@
-// metal stand-in for Shader Graphs/WaterShader, the real code is in CULiquid.hlsl
+// metal stand-in for Shader Graphs/WaterShader. the real code is in CULiquid.hlsl
 Shader "CU/Water"
 {
     Properties

@@ -1,6 +1,6 @@
-// metal stand-in for Shader Graphs/DuneShader, the `dunemode` console command
-// one (Resources/Special/DuneMaterial). per the bytecode it has _Dune times vertex
-// color, a discard at alpha 0, and normal 2D sprite lighting
+// metal stand-in for Shader Graphs/DuneShader. its the one the dunemode console
+// command uses (Resources/Special/DuneMaterial). per the bytecode it has _Dune times
+// vertex color plus a discard at alpha 0 and normal 2D sprite lighting
 Shader "CU/Dune"
 {
     Properties
@@ -152,7 +152,7 @@ Shader "CU/Dune"
                 return o;
             }
 
-            // original forward pass doesnt discard, so neither does this
+            // original forward pass doesnt discard so this doesnt either
             half4 frag(Varyings i) : SV_Target
             {
                 return SAMPLE_TEXTURE2D_BIAS(_Dune, sampler_Dune, i.uv, _GlobalMipBias.x) * i.color;

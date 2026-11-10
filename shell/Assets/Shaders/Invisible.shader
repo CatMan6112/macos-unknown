@@ -1,4 +1,4 @@
-// stopgap for shader graphs with no metal build, draws nothing. two passes cause
+// stopgap for shader graphs with no metal build that draws nothing. two passes cause
 // the fullscreen graphs have two and URP picks one by index
 Shader "CU/Invisible"
 {

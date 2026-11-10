@@ -1,7 +1,7 @@
-"""crops an icon png to its content, scales it up and centers it on a square
+"""crops an icon png to its content then scales it up and centers it on a square
 
 usage: python -I fit-icon.py <in.png> <out.png> [size=1024] [fill=0.94]
-centers sideways on the alpha centroid, bounding box centering looks off on
+centers sideways on the alpha centroid cause bounding box centering looks off on
 anything with a bite or a leaf sticking out
 """
 import sys

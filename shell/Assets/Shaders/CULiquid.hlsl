@@ -1,9 +1,9 @@
-// hand port of the liquid shader graphs (Water, DirtWater, Oil, Sap, Algae) off
+// hand port of the liquid shader graphs (Water DirtWater Oil Sap and Algae) off
 // their D3D11 bytecode. each .shader defines LIQUID_<KIND> and CU_PASS_<PASS>
 // then includes this
 //
-// all of them do the same thing, two scrolling Simple Noise fields (scale 8)
-// wobble a screen space lookup of WATERPLEASE, and LIQUIDCIRCLE is the alpha shape
+// all of them do the same thing. two scrolling Simple Noise fields (scale 8)
+// wobble a screen space lookup of WATERPLEASE and LIQUIDCIRCLE is the alpha shape
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/Shaders/2D/Include/Core2D.hlsl"
@@ -68,7 +68,7 @@ float CULiq_ValueNoise(float2 uv)
     return lerp(lerp(r0, r1, f.x), lerp(r2, r3, f.x), f.y);
 }
 
-// shader graph Simple Noise (deterministic), scale 8
+// shader graph Simple Noise (deterministic) at scale 8
 float CULiq_SimpleNoise(float2 uv)
 {
     return CULiq_ValueNoise(uv * 8.0) * 0.125
@@ -76,7 +76,7 @@ float CULiq_SimpleNoise(float2 uv)
          + CULiq_ValueNoise(uv * 2.0) * 0.5;
 }
 
-// shader graph Voronoi (deterministic hash), distance to the nearest cell point
+// shader graph Voronoi (deterministic hash) that gives distance to the nearest cell point
 float CULiq_Voronoi(float2 uv, float angleOffset)
 {
     float2 g = floor(uv);
@@ -128,7 +128,7 @@ half4 CULiq_Color(float4 positionCS, float2 uv, half4 vertexColor, float3 positi
     c.rgb = tex.rgb * half3(1.0, 0.459832, 0.108526);
     c.a = lerp(tex.b, 1.0, 0.9) * mask;
 #elif defined(LIQUID_ALGAE)
-    // voronoi on world xy, cells drift over time and glow near the points
+    // voronoi on world xy. cells drift over time and glow near the points
     half glow = (1.0 - CULiq_Voronoi(positionWS.xy, t * 0.3)) >= 0.93 ? 1.0 : 0.0;
     c.rgb = tex.rgb * half3(0.54, 1.51, 0.63) + glow * half3(0.656394, 5.99216, 0.254384);
     c.a = max(lerp(tex.b, 1.0, 0.8), glow) * mask;

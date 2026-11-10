@@ -11,15 +11,15 @@ import sys, pathlib, UnityPy
 donor_dir, game_dir = map(pathlib.Path, sys.argv[1:3])
 KEEP = ("m_Dependencies", "m_NonModifiableTextures")
 
-# shader graphs got no metal build, so each gets a donor shader under its own name.
+# shader graphs got no metal build so each gets a donor shader under its own name
 # CUG/<graph> comes out of dx2hlsl.py (shell/Assets/Shaders/Generated)
 GRAPHS = """AberrationShader AlgaeShader BlueHeartPulseShader BonusPass CrystalShimmer DamageScreen
 DirtWaterShader DuneShader Emissivesprite FogShader HoverShader HumanShader Limb LiquidFill MagmaShader
 ObserverShader OilShader ProgressiveDestructShader RadBackground RadLine RainShader RedSludgeShader
 SapShader ScreenPass ScreenSpaceDistortion Snowfall WallHole WaterShader""".split()
 ALIAS = {g: "CUG/" + g for g in GRAPHS}
-# old hand ports still around as a fallback (CU/Water, DirtWater, Oil, Sap, Dune,
-# Algae in shell/Assets/Shaders). to use one do ALIAS["WaterShader"] = "CU/Water"
+# old hand ports still around as a fallback (CU/Water DirtWater Oil Sap Dune and
+# Algae in shell/Assets/Shaders). to use one add it to ALIAS under the graph name
 
 donor = {}
 denv = UnityPy.load(str(donor_dir))
@@ -60,8 +60,8 @@ for obj in genv.objects:
     changed.add(obj.assets_file)
     print(f"swapped {f}:{obj.path_id} {name}" + (f" <- {src}" if src != name else ""))
 
-# game only lists D3D11 (2). the player wont touch metal (16) unless its listed,
-# you just get a null device and shit
+# game only lists D3D11 (2). the player wont touch metal (16) unless its listed
+# so you just get a null device and shit
 for obj in genv.objects:
     if obj.type.name == "BuildSettings":
         tt = obj.read_typetree()
