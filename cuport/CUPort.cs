@@ -24,6 +24,8 @@ namespace CUPort
     {
         public static void Init()
         {
+            if (ModGuard.Blocked())
+                return;
             var go = new GameObject("CUPort");
             go.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(go);
@@ -33,6 +35,66 @@ namespace CUPort
             saver.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(saver);
             saver.AddComponent<PauseSaver>();
+        }
+    }
+
+    // with the launcher's mod box off the app is signed so dyld drops injected
+    // libraries. this catches a loader that got in some other way, like a dll
+    // added to ScriptingAssemblies.json, and closes the game before it runs.
+    // cuport.json says "mods": true when the box is on
+    static class ModGuard
+    {
+        static readonly string[] Loaders = { "BepInEx", "0Harmony", "HarmonyX", "MelonLoader", "MonoMod", "Doorstop" };
+
+        static bool Allowed()
+        {
+            try
+            {
+                var json = File.ReadAllText(Path.Combine(Application.dataPath, "Resources/cuport.json"));
+                return Regex.IsMatch(json, "\"mods\"\\s*:\\s*true");
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        static bool IsLoader(Assembly a)
+        {
+            var name = a.GetName().Name;
+            foreach (var l in Loaders)
+                if (name.StartsWith(l, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+
+        static bool stopping;
+
+        static void Stop(Assembly a)
+        {
+            if (stopping)
+                return;
+            stopping = true;
+            Debug.LogError("[CUPort] mod loader " + a.GetName().Name + " found with mods turned off, quitting");
+            // Application.Quit waits for the frame to end and a plugin can run in that time
+            _exit(1);
+        }
+
+        [DllImport("libc")]
+        static extern void _exit(int code);
+
+        public static bool Blocked()
+        {
+            if (Allowed())
+                return false;
+            AppDomain.CurrentDomain.AssemblyLoad += (_, e) => { if (IsLoader(e.LoadedAssembly)) Stop(e.LoadedAssembly); };
+            foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
+                if (IsLoader(a))
+                {
+                    Stop(a);
+                    return true;
+                }
+            return false;
         }
     }
 

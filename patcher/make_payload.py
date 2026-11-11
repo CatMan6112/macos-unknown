@@ -6,7 +6,8 @@ reads build/Shell.app and build/ShaderShell.app and build/SteamLib.app (from
 the scripts in scripts/). the empty mac unity player goes to payload/Shell.app
 and every metal Shader from the donor goes to shaders.json.gz. the mac
 steamworks dll and steam_api.bundle go to steam/ and the icon to PlayerIcon.icns.
-the engine version it was built for goes in payload.json
+build/modloader (libdoorstop.dylib + BepInEx/core, the arm64 capable rebuilds)
+goes to mods/. the engine version it was built for goes in payload.json
 """
 import gzip, json, pathlib, shutil, subprocess, sys
 import UnityPy
@@ -41,6 +42,8 @@ S = B / "SteamLib.app/Contents"
 (OUT / "steam").mkdir()
 shutil.copy2(S / "Resources/Data/Managed/com.rlabrecque.steamworks.net.dll", OUT / "steam")
 subprocess.run(["ditto", str(S / "PlugIns/steam_api.bundle"), str(OUT / "steam/steam_api.bundle")], check=True)
+
+subprocess.run(["ditto", str(B / "modloader"), str(OUT / "mods")], check=True)
 
 icns = ROOT / "patcher/assets/cu-apple.icns"
 shutil.copy2(icns, OUT / "PlayerIcon.icns")

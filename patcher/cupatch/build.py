@@ -11,6 +11,7 @@ import argparse, gzip, json, pathlib, plistlib, shutil, subprocess, sys, time
 import UnityPy
 
 from .tt import decode
+from . import mods as modloader
 
 PAYLOAD = pathlib.Path(__file__).resolve().parent.parent / "payload"
 FULL, DEMO = 4576490, 4576510
@@ -115,7 +116,7 @@ def install_cuport(data):
         p.write_text(json.dumps(ri, separators=(",", ":")))
 
 
-def build(game, out, appid=FULL, manifest=None, log=print):
+def build(game, out, appid=FULL, manifest=None, log=print, mods=False):
     out = pathlib.Path(out)
     src = find_data(game)
     want = json.loads((PAYLOAD / "payload.json").read_text())["unity"]
@@ -158,7 +159,8 @@ def build(game, out, appid=FULL, manifest=None, log=print):
         install_cuport(D)
 
         # on mac Application.dataPath is Contents/ and not Contents/Resources/Data idk why the fuck
-        for name in ("Lang", "custommusic"):
+        # mods look there too, the multiplayer mod hashes dataPath/Managed/Assembly-CSharp.dll
+        for name in ("Lang", "custommusic", "Managed"):
             if (D / name).exists():
                 (C / name).symlink_to(f"Resources/Data/{name}")
         shutil.copy2(PAYLOAD / "PlayerIcon.icns", R / "PlayerIcon.icns")
@@ -175,9 +177,10 @@ def build(game, out, appid=FULL, manifest=None, log=print):
             "built": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "unswapped_shaders": missing,
         }, indent=1))
+        modloader.configure(stage, mods)
 
         log("signing")
-        run("codesign", "--force", "--deep", "-s", "-", str(stage))
+        modloader.sign(stage, mods)
     except BaseException:
         shutil.rmtree(stage, ignore_errors=True)
         raise
@@ -194,9 +197,10 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--appid", type=int, default=FULL)
     ap.add_argument("--manifest")
+    ap.add_argument("--mods", action="store_true", help="let BepInEx load (signed without the dyld block)")
     a = ap.parse_args()
     try:
-        build(a.game, a.out, a.appid, a.manifest)
+        build(a.game, a.out, a.appid, a.manifest, mods=a.mods)
     except BuildError as e:
         sys.exit(str(e))
 

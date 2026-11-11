@@ -14,7 +14,9 @@
 
 Hey! You! Yeah! You!
 
-Do you like watching cute thing suffer? Well im assuming you do because you play this god-awful gut wrenching game. Well, do i have a deal for you! For the low low price of FREE you can build a copy of the game for your own overpriced red-produce fruit laptop! (macbook) or a desktop. or a monitor. or an ipad running it if you did that for some reason...
+Do you like watching cute things suffer? Well im assuming you do because you play this god-awful gut wrenching game. Well, do i have a deal for you! For the low low price of FREE you can build a copy of the game for your own overpriced red-produce fruit laptop! (macbook) or a desktop. or a monitor. or an ipad running it if you did that for some reason...
+
+For real-time updates and just more information in general, join the [official C:U discord server](https://discord.gg/targetplanet), and then look at the [MacOS: Unknown](https://discord.com/channels/955738554129063947/1569569466373902388) thread under the modding forum channel.
 
 ## Disclaimers
 
@@ -63,6 +65,14 @@ I want to be myself!<br>
 I want to continue existing in this world! I am worth living here! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations! Congratulations!
 
 Evangelion references out of the way, congratulations. You now have hopefully succesfully built a functioning port of the first full release of C:U for macos. Click play, enjoy yourself, go feel bad for failing your little expie and or dune and or milky.
+
+## Mods
+
+kinda sorta works. tick **Mod loader** in the launcher and a **plugins** link shows up next to it. drop BepInEx 5 plugins in there and hit play. untick it and the game wont load any mod loader at all.
+
+it runs a rebuilt BepInEx on newer MonoMod so it works native on apple silicon. most harmony plugins should be fine, stuff that pokes MonoMod directly might not be. C:U MP doesnt play nice with it if game file hashing is on.
+
+BepInEx and UnityDoorstop are LGPL-2.1 and i had to change both. the changes and how to build them are in [third_party](third_party), and the full changed source is attached to the release.
 
 ## Issues & Contributions
 

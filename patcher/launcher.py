@@ -11,6 +11,7 @@ import tkinter.font as tkfont
 HERE = pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(HERE))
 from cupatch import build as cubuild  # noqa: E402
+from cupatch import mods as modloader  # noqa: E402
 
 ASSETS = HERE / "assets"
 STEAM = pathlib.Path.home() / "Library/Application Support/Steam"
@@ -23,7 +24,7 @@ W, H = 440, 282
 INK, FILL, DIM, LINK = "#000000", "#0000cc", "#a0a0a0", "#0000ee"
 SITE = "https://catman6112.dev"
 
-VERSION = "1.1.3"
+VERSION = "1.2.0"
 RELEASES = "https://api.github.com/repos/CatMan6112/macos-unknown/releases/latest"
 SETTINGS = pathlib.Path.home() / "Library/Application Support/macos-unknown/launcher.json"
 # python.org builds ship without CA certs, every mac has this one
@@ -421,14 +422,16 @@ class Launcher:
             x += w + 20
 
         self.settings = load_settings()
-        bx0, by0 = 10, 14
-        box = cv.create_rectangle(bx0, by0 - 6, bx0 + 12, by0 + 6, outline=INK, fill="#ffffff")
-        self.tick_mark = cv.create_line(bx0 + 3, by0, bx0 + 5, by0 + 3, bx0 + 9, by0 - 3,
-                                        fill=INK, width=2)
-        label = cv.create_text(bx0 + 18, by0, text="Automatic updates", font=SMALL, fill=INK, anchor="w")
-        for item in (box, self.tick_mark, label):
-            cv.tag_bind(item, "<Button-1>", lambda _e: self.set_auto(not self.auto_update()))
+        self.tick_mark, _ = self.checkbox(14, "Automatic updates", lambda: self.set_auto(not self.auto_update()))
         self.set_auto(self.auto_update())
+        self.mods_mark, mods_label = self.checkbox(34, "Mod loader", lambda: self.toggle_mods())
+        # opens BepInEx/plugins, only there while the box is ticked
+        self.plugins_link = cv.create_text(cv.bbox(mods_label)[2] + 8, 34, text="plugins",
+                                           font=UNDER, fill=LINK, anchor="w")
+        cv.tag_bind(self.plugins_link, "<Button-1>", lambda _e: self.open_plugins())
+        cv.tag_bind(self.plugins_link, "<Enter>", lambda _e: cv.configure(cursor="pointinghand"))
+        cv.tag_bind(self.plugins_link, "<Leave>", lambda _e: cv.configure(cursor=""))
+        self.show_mods()
 
         bw, gap = 84, 8
         bx = mid - (3 * bw + 2 * gap) / 2
@@ -459,6 +462,15 @@ class Launcher:
         self.bundle = own_bundle()
         if self.bundle and self.auto_update():
             threading.Thread(target=self.check_thread, daemon=True).start()
+
+    def checkbox(self, y, text, cmd):
+        cv, x = self.cv, 10
+        box = cv.create_rectangle(x, y - 6, x + 12, y + 6, outline=INK, fill="#ffffff")
+        mark = cv.create_line(x + 3, y, x + 5, y + 3, x + 9, y - 3, fill=INK, width=2)
+        label = cv.create_text(x + 18, y, text=text, font=SMALL, fill=INK, anchor="w")
+        for item in (box, mark, label):
+            cv.tag_bind(item, "<Button-1>", lambda _e: cmd())
+        return mark, label
 
     # state
 
@@ -551,6 +563,67 @@ class Launcher:
             self.error(f"Update failed: {msg}")
             self.refresh()
 
+    # mods
+
+    def mods_on(self):
+        return self.settings.get("mods", False)
+
+    def show_mods(self):
+        state = "normal" if self.mods_on() else "hidden"
+        self.cv.itemconfig(self.mods_mark, state=state)
+        self.cv.itemconfig(self.plugins_link, state=state)
+
+    def toggle_mods(self):
+        if self.busy:
+            return
+        self.settings["mods"] = not self.mods_on()
+        save_settings(self.settings)
+        self.show_mods()
+        self.error("")
+        if APP.exists() and modloader.enabled(APP) != self.mods_on():
+            self.apply_mods()
+
+    def apply_mods(self, then=None):
+        # re signs the built app so it takes a few seconds
+        self.busy = "mods"
+        self.open_popup("Mods")
+        self.popup.set(0.3)
+        self.refresh()
+        threading.Thread(target=self.mods_thread, args=(self.mods_on(), then), daemon=True).start()
+
+    def mods_thread(self, on, then):
+        try:
+            modloader.set_mods(APP, on)
+            self.q.put(("mods_done", then))
+        except Exception as e:
+            self.q.put(("mods_fail", (on, str(e))))
+
+    def on_mods_msg(self, kind, msg):
+        self.busy = None
+        if kind == "mods_done":
+            self.popup.set(1.0)
+            self.root.after(300, self.close_popup)
+            if msg:
+                msg()
+        else:
+            on, err = msg
+            self.close_popup()
+            self.settings["mods"] = not on
+            save_settings(self.settings)
+            self.show_mods()
+            self.error(f"Could not turn mods {'on' if on else 'off'}: {err}")
+        self.refresh()
+
+    def open_plugins(self):
+        d = modloader.plugins_dir()
+        try:
+            if not d.exists():
+                modloader.install_loader()
+        except Exception as e:
+            self.error(f"Could not make the plugins folder: {e}")
+            return
+        subprocess.run(["open", str(d)])
+
     # get files
 
     def get_files(self):
@@ -605,7 +678,7 @@ class Launcher:
         try:
             APP.parent.mkdir(parents=True, exist_ok=True)
             cubuild.build(depot_dir(ed), new, appid, manifest,
-                          log=lambda m: self.q.put(("log", m)))
+                          log=lambda m: self.q.put(("log", m)), mods=self.mods_on())
             if APP.exists():  # old build goes to the trash and never gets straight up deleted
                 trash = pathlib.Path.home() / ".Trash" / f"Casualties Unknown {time.strftime('%H%M%S')}.app"
                 shutil.move(str(APP), str(trash))
@@ -635,6 +708,13 @@ class Launcher:
     # play
 
     def play(self):
+        # an app built before the box existed, or flipped while it failed
+        if modloader.enabled(APP) != self.mods_on():
+            self.apply_mods(then=self.launch)
+            return
+        self.launch()
+
+    def launch(self):
         if subprocess.run(["open", str(APP)]).returncode:
             self.error("The game would not start.")
 
@@ -654,6 +734,8 @@ class Launcher:
             kind, msg = self.q.get()
             if kind in ("update", "uprog", "updated", "upfail"):
                 self.on_update_msg(kind, msg)
+            elif kind in ("mods_done", "mods_fail"):
+                self.on_mods_msg(kind, msg)
             else:
                 self.on_build_msg(kind, msg)
         if self.busy == "build" and self.popup and self.popup.value < self.creep_to:

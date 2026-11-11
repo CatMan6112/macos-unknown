@@ -1,0 +1,280 @@
+diff --git a/BepInEx.Preloader/BepInEx.Preloader.csproj b/BepInEx.Preloader/BepInEx.Preloader.csproj
+index f054cf3..c4a7e91 100644
+--- a/BepInEx.Preloader/BepInEx.Preloader.csproj
++++ b/BepInEx.Preloader/BepInEx.Preloader.csproj
+@@ -2,7 +2,7 @@
+     <PropertyGroup>
+         <Product>BepInEx.Preloader</Product>
+         <Copyright>Copyright © Bepis 2019</Copyright>
+-        <TargetFramework>net35</TargetFramework>
++        <TargetFramework>net452</TargetFramework>
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <CopyDocumentationFilesFromPackages>true</CopyDocumentationFilesFromPackages>
+         <VersionPrefix>$(BepInExVersionPrefix)</VersionPrefix>
+@@ -11,14 +11,14 @@
+ 
+     <ItemGroup>
+         <ProjectReference Include="..\BepInEx\BepInEx.csproj"/>
+-        <ProjectReference Include="..\submodules\BepInEx.Harmony\HarmonyXInterop\HarmonyXInterop.csproj"/>
+     </ItemGroup>
+ 
+     <ItemGroup>
+-        <PackageReference Include="HarmonyX" Version="2.9.0"/>
+-        <PackageReference Include="Mono.Cecil" Version="0.10.4"/>
+-        <PackageReference Include="MonoMod.RuntimeDetour" Version="22.1.29.1"/>
+-        <PackageReference Include="MonoMod.Utils" Version="22.1.29.1"/>
++        <Reference Include="HarmonyXInterop"><HintPath>..\lib\HarmonyXInterop.dll</HintPath></Reference>
++        <PackageReference Include="HarmonyX" Version="2.16.1"/>
++        <PackageReference Include="Mono.Cecil" Version="0.11.6"/>
++        <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.4"/>
++        <PackageReference Include="MonoMod.Utils" Version="25.0.12"/>
+     </ItemGroup>
+ 
+     <Target Name="DeletePdbFromPublish" AfterTargets="Publish">
+diff --git a/BepInEx.Preloader/RuntimeFixes/XTermFix.cs b/BepInEx.Preloader/RuntimeFixes/XTermFix.cs
+index 7db6ef5..6748c47 100644
+--- a/BepInEx.Preloader/RuntimeFixes/XTermFix.cs
++++ b/BepInEx.Preloader/RuntimeFixes/XTermFix.cs
+@@ -3,8 +3,6 @@ using System.Collections.Generic;
+ using System.Linq;
+ using System.Reflection.Emit;
+ using HarmonyLib;
+-using MonoMod.RuntimeDetour;
+-using MonoMod.RuntimeDetour.Platforms;
+ using MonoMod.Utils;
+ 
+ namespace BepInEx.Preloader.RuntimeFixes
+@@ -33,7 +31,6 @@ namespace BepInEx.Preloader.RuntimeFixes
+ 			// this causes a crash owing to TermInfoReader running before it can be patched and fixed
+ 			// Because Doorstop does not support ARM at the moment, we can get away with just forcing x86 detour platform.
+ 			// TODO: Figure out a way to detect ARM on Unix without running Process.Start
+-			DetourHelper.Native = new DetourNativeX86Platform();
+ 			
+ 			var harmony = new HarmonyLib.Harmony("com.bepinex.xtermfix");
+ 
+@@ -49,7 +46,6 @@ namespace BepInEx.Preloader.RuntimeFixes
+ 			harmony.Patch(AccessTools.Method("System.TermInfoReader:GetStringBytes", new []{ AccessTools.TypeByName("System.TermInfoStrings") }),
+ 				transpiler: new HarmonyMethod(typeof(XTermFix), nameof(GetTermInfoStringsTranspiler)));
+ 
+-			DetourHelper.Native = null;
+ 		}
+ 
+ 		public static int intOffset;
+diff --git a/BepInEx/BepInEx.csproj b/BepInEx/BepInEx.csproj
+index 3451f39..c663723 100644
+--- a/BepInEx/BepInEx.csproj
++++ b/BepInEx/BepInEx.csproj
+@@ -3,7 +3,7 @@
+     <Product>BepInEx</Product>
+     <Description>Unity plugin injection framework</Description>
+     <Copyright>Copyright © Bepis 2018</Copyright>
+-    <TargetFramework>net35</TargetFramework>
++    <TargetFramework>net452</TargetFramework>
+     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+     <CopyDocumentationFilesFromPackages>true</CopyDocumentationFilesFromPackages>
+     <VersionPrefix>$(BepInExVersionPrefix)</VersionPrefix>
+@@ -12,25 +12,13 @@
+ 
+   <ItemGroup>
+     <!-- https://github.com/dotnet/msbuild/issues/1916 -->
+-    <ProjectReference Include="..\submodules\BepInEx.Harmony\BepInEx.Harmony\BepInEx.Harmony.csproj">
+-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+-      <OutputItemType>Content</OutputItemType>
+-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+-      <Targets>Build;DocumentationProjectOutputGroup</Targets>
+-    </ProjectReference>
+-    <ProjectReference Include="..\submodules\BepInEx.Harmony\HarmonyX2Interop\HarmonyX2Interop.csproj">
+-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+-      <OutputItemType>Content</OutputItemType>
+-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+-      <Targets>Build</Targets>
+-    </ProjectReference>
+   </ItemGroup>
+ 
+   <ItemGroup>
+-    <PackageReference Include="HarmonyX" Version="2.9.0"/>
+-    <PackageReference Include="Mono.Cecil" Version="0.10.4"/>
+-    <PackageReference Include="MonoMod.RuntimeDetour" Version="22.1.29.1"/>
+-    <PackageReference Include="MonoMod.Utils" Version="22.1.29.1"/>
++    <PackageReference Include="HarmonyX" Version="2.16.1"/>
++    <PackageReference Include="Mono.Cecil" Version="0.11.6"/>
++    <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.4"/>
++    <PackageReference Include="MonoMod.Utils" Version="25.0.12"/>
+     <PackageReference Include="UnityEngine" Version="5.6.1" IncludeAssets="compile"/>
+   </ItemGroup>
+ 
+diff --git a/BepInEx/Compat/LegacyPlatform.cs b/BepInEx/Compat/LegacyPlatform.cs
+new file mode 100644
+index 0000000..dd6117d
+--- /dev/null
++++ b/BepInEx/Compat/LegacyPlatform.cs
+@@ -0,0 +1,55 @@
++using System;
++
++// MonoMod 25 dropped Platform and PlatformHelper. BepInEx 5 still asks for
++// them all over, so this puts the old enum and check back under the old
++// names. the preloader fills in Current itself (Platform.cs SetPlatform)
++namespace MonoMod.Utils
++{
++	[Flags]
++	public enum Platform
++	{
++		Unknown = 0,
++		OS = 1 << 0,
++		Bits64 = 1 << 1,
++		NT = 1 << 2,
++		Unix = 1 << 3,
++		ARM = 1 << 16,
++		Wine = 1 << 17,
++		Windows = OS | NT | 1 << 5,
++		MacOS = OS | Unix | 1 << 6,
++		Linux = OS | Unix | 1 << 7,
++		Android = Linux | 1 << 8,
++		iOS = MacOS | 1 << 9,
++	}
++
++	public static class PlatformHelper
++	{
++		static Platform? current;
++
++		public static Platform Current
++		{
++			get
++			{
++				if (current == null)
++					current = Guess();
++				return current.Value;
++			}
++			set { current = value; }
++		}
++
++		public static bool Is(Platform p) { return (Current & p) == p; }
++
++		// only used if something asks before the preloader sets it
++		static Platform Guess()
++		{
++			var p = IntPtr.Size >= 8 ? Platform.Bits64 : 0;
++			switch (Environment.OSVersion.Platform)
++			{
++				case PlatformID.Win32NT: return p | Platform.Windows;
++				case PlatformID.MacOSX: return p | Platform.MacOS;
++				case PlatformID.Unix: return p | Platform.Linux;
++				default: return p;
++			}
++		}
++	}
++}
+diff --git a/BepInEx/Console/Unix/UnixStreamHelper.cs b/BepInEx/Console/Unix/UnixStreamHelper.cs
+index c82e5bb..6fbe307 100644
+--- a/BepInEx/Console/Unix/UnixStreamHelper.cs
++++ b/BepInEx/Console/Unix/UnixStreamHelper.cs
+@@ -1,53 +1,64 @@
+-﻿using System;
+-using System.Collections.Generic;
++using System;
+ using System.IO;
++using System.Runtime.InteropServices;
+ using MonoMod.Utils;
+ 
+ namespace BepInEx.Unix
+ {
++	// used to go through MonoMod's DynDllImport, which MonoMod 25 removed.
++	// same libc calls, looked up by hand with dlopen and dlsym
+ 	internal static class UnixStreamHelper
+ 	{
+ 		public delegate int dupDelegate(int fd);
+-		[DynDllImport("libc")]
+ 		public static dupDelegate dup;
+ 
+ 		public delegate IntPtr fdopenDelegate(int fd, string mode);
+-		[DynDllImport("libc")]
+ 		public static fdopenDelegate fdopen;
+ 
+ 		public delegate IntPtr freadDelegate(IntPtr ptr, IntPtr size, IntPtr nmemb, IntPtr stream);
+-		[DynDllImport("libc")]
+ 		public static freadDelegate fread;
+ 
+ 		public delegate int fwriteDelegate(IntPtr ptr, IntPtr size, IntPtr nmemb, IntPtr stream);
+-		[DynDllImport("libc")]
+ 		public static fwriteDelegate fwrite;
+ 
+ 		public delegate int fcloseDelegate(IntPtr stream);
+-		[DynDllImport("libc")]
+ 		public static fcloseDelegate fclose;
+ 
+ 		public delegate int fflushDelegate(IntPtr stream);
+-		[DynDllImport("libc")]
+ 		public static fflushDelegate fflush;
+ 
+ 		public delegate int isattyDelegate(int fd);
+-		[DynDllImport("libc")]
+ 		public static isattyDelegate isatty;
+ 
++		[DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "dlopen")] static extern IntPtr dlopen_mac(string path, int mode);
++		[DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "dlsym")] static extern IntPtr dlsym_mac(IntPtr handle, string name);
++		[DllImport("libdl.so.2", EntryPoint = "dlopen")] static extern IntPtr dlopen_linux(string path, int mode);
++		[DllImport("libdl.so.2", EntryPoint = "dlsym")] static extern IntPtr dlsym_linux(IntPtr handle, string name);
++
+ 		static UnixStreamHelper()
+ 		{
+-			var libcMapping = new Dictionary<string, List<DynDllMapping>>
++			bool mac = PlatformHelper.Is(Platform.MacOS);
++			IntPtr libc = mac ? dlopen_mac("/usr/lib/libSystem.B.dylib", 2) : dlopen_linux("libc.so.6", 2);
++			if (libc == IntPtr.Zero && !mac)
++				libc = dlopen_linux("libc", 2);
++			if (libc == IntPtr.Zero)
++				throw new DllNotFoundException("libc");
++
++			T Get<T>(string name) where T : class
+ 			{
+-				["libc"] = new List<DynDllMapping>
+-				{
+-					"libc.so.6", // Ubuntu glibc
+-					"libc", // Linux glibc
+-					"/usr/lib/libSystem.dylib", // OSX POSIX
+-				}
+-			};
+-
+-			typeof(UnixStreamHelper).ResolveDynDllImports(libcMapping);
++				IntPtr f = mac ? dlsym_mac(libc, name) : dlsym_linux(libc, name);
++				if (f == IntPtr.Zero)
++					throw new EntryPointNotFoundException(name);
++				return Marshal.GetDelegateForFunctionPointer(f, typeof(T)) as T;
++			}
++
++			dup = Get<dupDelegate>("dup");
++			fdopen = Get<fdopenDelegate>("fdopen");
++			fread = Get<freadDelegate>("fread");
++			fwrite = Get<fwriteDelegate>("fwrite");
++			fclose = Get<fcloseDelegate>("fclose");
++			fflush = Get<fflushDelegate>("fflush");
++			isatty = Get<isattyDelegate>("isatty");
+ 		}
+ 
+ 		public static Stream CreateDuplicateStream(int fileDescriptor)
+@@ -57,4 +68,4 @@ namespace BepInEx.Unix
+ 			return new UnixStream(newFd, FileAccess.Write);
+ 		}
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/BepInEx/Console/Windows/ConsoleWindow.cs b/BepInEx/Console/Windows/ConsoleWindow.cs
+index f325844..a920119 100644
+--- a/BepInEx/Console/Windows/ConsoleWindow.cs
++++ b/BepInEx/Console/Windows/ConsoleWindow.cs
+@@ -118,10 +118,10 @@ namespace UnityInjector.ConsoleUtil
+ 
+ 			// Some games may ship user32.dll with some methods missing. As such, we load the DLL explicitly from system folder
+ 			var user32Dll = LoadLibraryEx("user32.dll", IntPtr.Zero, LOAD_LIBRARY_SEARCH_SYSTEM32);
+-			setForeground = GetProcAddress(user32Dll, "SetForegroundWindow").AsDelegate<SetForegroundWindowDelegate>();
+-			getForeground = GetProcAddress(user32Dll,"GetForegroundWindow").AsDelegate<GetForegroundWindowDelegate>();
+-			getSystemMenu = GetProcAddress(user32Dll,"GetSystemMenu").AsDelegate<GetSystemMenuDelegate>();
+-			deleteMenu = GetProcAddress(user32Dll,"DeleteMenu").AsDelegate<DeleteMenuDelegate>();
++			setForeground = (SetForegroundWindowDelegate)Marshal.GetDelegateForFunctionPointer(GetProcAddress(user32Dll, "SetForegroundWindow"), typeof(SetForegroundWindowDelegate));
++			getForeground = (GetForegroundWindowDelegate)Marshal.GetDelegateForFunctionPointer(GetProcAddress(user32Dll,"GetForegroundWindow"), typeof(GetForegroundWindowDelegate));
++			getSystemMenu = (GetSystemMenuDelegate)Marshal.GetDelegateForFunctionPointer(GetProcAddress(user32Dll,"GetSystemMenu"), typeof(GetSystemMenuDelegate));
++			deleteMenu = (DeleteMenuDelegate)Marshal.GetDelegateForFunctionPointer(GetProcAddress(user32Dll,"DeleteMenu"), typeof(DeleteMenuDelegate));
+ 		}
+ 		
+ 		[DllImport("kernel32.dll", SetLastError=true)]
