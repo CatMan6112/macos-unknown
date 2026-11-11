@@ -43,6 +43,8 @@ def install_loader():
     core.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["ditto", str(src / "BepInEx/core"), str(core)], check=True, capture_output=True)
     shutil.copy2(src / "libdoorstop.dylib", MODS / "libdoorstop.dylib")
+    # the licenses go wherever the dlls go
+    subprocess.run(["ditto", str(src / "licenses"), str(MODS / "licenses")], check=True, capture_output=True)
     for d in ("plugins", "patchers", "config"):
         (MODS / "BepInEx" / d).mkdir(exist_ok=True)
 

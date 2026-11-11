@@ -44,6 +44,7 @@ shutil.copy2(S / "Resources/Data/Managed/com.rlabrecque.steamworks.net.dll", OUT
 subprocess.run(["ditto", str(S / "PlugIns/steam_api.bundle"), str(OUT / "steam/steam_api.bundle")], check=True)
 
 subprocess.run(["ditto", str(B / "modloader"), str(OUT / "mods")], check=True)
+subprocess.run(["ditto", str(ROOT / "third_party/licenses"), str(OUT / "mods/licenses")], check=True)
 
 icns = ROOT / "patcher/assets/cu-apple.icns"
 shutil.copy2(icns, OUT / "PlayerIcon.icns")

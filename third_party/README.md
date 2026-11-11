@@ -1,6 +1,6 @@
 # third party source
 
-the mod loader in the launcher has two LGPL-2.1 libraries that i had to change so they run native on apple silicon. this folder has the changes as patches against the upstream tags plus their licenses. the full changed source trees are also attached to every release that ships them.
+the mod loader in the launcher has two libraries i had to change so they run native on apple silicon. UnityDoorstop is LGPL-2.1 and BepInEx 5 is MIT. this folder has the changes as patches against the upstream tags. the full changed source trees are also attached to every release that ships them. licenses holds the license of everything the mod loader ships, and NOTICE.txt says what each file is and where it came from.
 
 ## UnityDoorstop v4.4.1
 

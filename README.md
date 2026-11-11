@@ -72,7 +72,7 @@ kinda sorta works. tick **Mod loader** in the launcher and a **plugins** link sh
 
 it runs a rebuilt BepInEx on newer MonoMod so it works native on apple silicon. most harmony plugins should be fine, stuff that pokes MonoMod directly might not be. C:U MP doesnt play nice with it if game file hashing is on.
 
-BepInEx and UnityDoorstop are LGPL-2.1 and i had to change both. the changes and how to build them are in [third_party](third_party), and the full changed source is attached to the release.
+i had to change BepInEx (MIT) and UnityDoorstop (LGPL-2.1) to get there. the changes and how to build them are in [third_party](third_party), the full changed source is attached to the release, and every license for the mod loader ships inside the app.
 
 ## Issues & Contributions
 

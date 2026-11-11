@@ -1,0 +1,17 @@
+the mod loader that ships with macos-unknown is made of these. license texts are in this folder
+
+libdoorstop.dylib is UnityDoorstop 4.4.1 with a change in plthook so it picks the slice for the cpu its running on. LGPL-2.1, see UnityDoorstop.txt. the changed source is attached to the release as UnityDoorstop-4.4.1-macos-src.tar.gz and the patch is in third_party/UnityDoorstop in the repo. upstream https://github.com/NeighTools/UnityDoorstop
+
+BepInEx.dll and BepInEx.Preloader.dll are BepInEx 5.4.23.4 rebuilt on HarmonyX 2.16.1 and MonoMod 25. MIT, see BepInEx.txt. changed source is BepInEx-5.4.23.4-macos-src.tar.gz on the release. upstream https://github.com/BepInEx/BepInEx
+
+BepInEx.Harmony.dll and HarmonyXInterop.dll come unchanged from the BepInEx 5.4.23.4 release. MIT, see BepInEx.Harmony.txt. upstream https://github.com/BepInEx/BepInEx.Harmony
+
+0Harmony.dll is HarmonyX 2.16.1 and 0Harmony20.dll comes from the BepInEx 5.4.23.4 release. MIT, see HarmonyX.txt. upstream https://github.com/BepInEx/HarmonyX
+
+MonoMod.Core, MonoMod.Utils, MonoMod.RuntimeDetour, MonoMod.Backports and MonoMod.ILHelpers are unchanged from nuget. MIT, see MonoMod.txt. upstream https://github.com/MonoMod/MonoMod
+
+MonoMod.Iced.dll is iced, bundled by MonoMod. MIT, see Iced.txt. upstream https://github.com/icedland/iced
+
+Mono.Cecil 0.11.6 is unchanged from nuget. MIT, see Mono.Cecil.txt. upstream https://github.com/jbevain/cecil
+
+System.ValueTuple.dll is the net47 build from the System.ValueTuple 4.5.0 nuget package. MIT, see System.ValueTuple.txt
