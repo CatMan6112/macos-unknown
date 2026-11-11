@@ -3,7 +3,7 @@
 when the dune lowky such a cutie you lowky jus pet
 """
 
-import json, os, pathlib, queue, re, shutil, ssl, subprocess, sys, tempfile, threading, time
+import ctypes, json, os, pathlib, queue, re, shutil, ssl, subprocess, sys, tempfile, threading, time
 import urllib.request
 import tkinter as tk
 import tkinter.font as tkfont
@@ -23,7 +23,7 @@ W, H = 440, 282
 INK, FILL, DIM, LINK = "#000000", "#0000cc", "#a0a0a0", "#0000ee"
 SITE = "https://catman6112.dev"
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 RELEASES = "https://api.github.com/repos/CatMan6112/macos-unknown/releases/latest"
 SETTINGS = pathlib.Path.home() / "Library/Application Support/macos-unknown/launcher.json"
 # python.org builds ship without CA certs, every mac has this one
@@ -85,6 +85,38 @@ def save_settings(d):
         pass
 
 
+def untranslocate(app):
+    # a quarantined app opened where it was unzipped runs from a read only copy
+    # so ask macos where the real one is. None if it wont say
+    if "/AppTranslocation/" not in str(app):
+        return app
+    try:
+        cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        sec = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
+        vp = ctypes.c_void_p
+        cf.CFURLCreateFromFileSystemRepresentation.restype = vp
+        cf.CFURLCreateFromFileSystemRepresentation.argtypes = [vp, ctypes.c_char_p, ctypes.c_long, ctypes.c_bool]
+        cf.CFURLGetFileSystemRepresentation.restype = ctypes.c_bool
+        cf.CFURLGetFileSystemRepresentation.argtypes = [vp, ctypes.c_bool, ctypes.c_char_p, ctypes.c_long]
+        cf.CFRelease.argtypes = [vp]
+        sec.SecTranslocateCreateOriginalPathForURL.restype = vp
+        sec.SecTranslocateCreateOriginalPathForURL.argtypes = [vp, vp]
+        raw = str(app).encode()
+        url = cf.CFURLCreateFromFileSystemRepresentation(None, raw, len(raw), True)
+        orig = sec.SecTranslocateCreateOriginalPathForURL(url, None) if url else None
+        if url:
+            cf.CFRelease(url)
+        if not orig:
+            return None
+        buf = ctypes.create_string_buffer(4096)
+        ok = cf.CFURLGetFileSystemRepresentation(orig, True, buf, len(buf))
+        cf.CFRelease(orig)
+        real = pathlib.Path(buf.value.decode()) if ok else None
+    except (OSError, AttributeError):
+        return None
+    return real if real and "/AppTranslocation/" not in str(real) and real.exists() else None
+
+
 def own_bundle():
     # the .app were running from, only exists once pyinstaller wraps us
     if os.environ.get("CUPORT_SELF"):
@@ -92,7 +124,7 @@ def own_bundle():
     if getattr(sys, "frozen", False):
         app = pathlib.Path(sys.executable).resolve().parents[2]
         if app.suffix == ".app":
-            return app
+            return untranslocate(app) or app
     return None
 
 
@@ -118,6 +150,8 @@ def newer_release():
 
 def install_update(rel, bundle, progress):
     # download the zip, unpack it next to us, then swap the bundles
+    if "/AppTranslocation/" in str(bundle) or not os.access(bundle.parent, os.W_OK):
+        raise RuntimeError("move the launcher to Applications and open it again")
     work = pathlib.Path(tempfile.mkdtemp(prefix="cuport-update-"))
     zp = work / "update.zip"
     with fetch(rel["url"], accept="application/octet-stream") as r, open(zp, "wb") as f:
@@ -395,8 +429,8 @@ class Launcher:
         self.b_files = Button(cv, bx, 208, bw, "Get files", self.get_files)
         self.b_build = Button(cv, bx + bw + gap, 208, bw, "Build", self.start_build)
         self.b_play = Button(cv, bx + 2 * (bw + gap), 208, bw, "Play", self.play)
-        self.err = cv.create_text(mid, 252, text="", font=SMALL, fill="#ff0000",
-                                  width=W - 40, justify="center")
+        self.err = cv.create_text(mid, 240, text="", font=SMALL, fill="#ff0000",
+                                  width=W - 40, justify="center", anchor="n")
 
         self.dune = tk.PhotoImage(file=str(ASSETS / "dune.png"))
         self.dune_id = cv.create_image(-120, H + 6, image=self.dune, anchor="sw")
