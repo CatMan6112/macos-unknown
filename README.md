@@ -70,7 +70,7 @@ Evangelion references out of the way, congratulations. You now have hopefully su
 
 kinda sorta works. tick **Mod loader** in the launcher and a **plugins** link shows up next to it. drop BepInEx 5 plugins in there and hit play. untick it and the game wont load any mod loader at all.
 
-it runs a rebuilt BepInEx on newer MonoMod so it works native on apple silicon. most harmony plugins should be fine, stuff that pokes MonoMod directly might not be. C:U MP doesnt play nice with it if game file hashing is on.
+it runs a rebuilt BepInEx on newer MonoMod so it works native on apple silicon. most harmony plugins should be fine, stuff that pokes MonoMod directly might not be. C:U MP only has trouble with it when the host has game file hashing turned on.
 
 i had to change BepInEx (MIT) and UnityDoorstop (LGPL-2.1) to get there. the changes and how to build them are in [third_party](third_party), the full changed source is attached to the release, and every license for the mod loader ships inside the app.
 
