@@ -23,7 +23,7 @@ W, H = 440, 282
 INK, FILL, DIM, LINK = "#000000", "#0000cc", "#a0a0a0", "#0000ee"
 SITE = "https://catman6112.dev"
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 RELEASES = "https://api.github.com/repos/CatMan6112/macos-unknown/releases/latest"
 SETTINGS = pathlib.Path.home() / "Library/Application Support/macos-unknown/launcher.json"
 # python.org builds ship without CA certs, every mac has this one
@@ -145,7 +145,8 @@ def newer_release():
     zips = [a for a in rel.get("assets", []) if a.get("name", "").endswith(".zip")]
     if not zips or not ver(tag) or ver(tag) <= ver(VERSION):
         return None
-    return {"tag": tag, "url": zips[0]["browser_download_url"], "size": zips[0].get("size") or 0}
+    return {"tag": tag, "title": (rel.get("name") or "").strip() or tag,
+            "url": zips[0]["browser_download_url"], "size": zips[0].get("size") or 0}
 
 
 def install_update(rel, bundle, progress):
@@ -342,21 +343,26 @@ class SteamNotice:
 class UpdatePrompt:
     UW = 280
 
-    def __init__(self, root, on_yes, on_no):
+    def __init__(self, root, title, on_yes, on_no):
         self.on_yes, self.on_no = on_yes, on_no
         self.win = win = tk.Toplevel(root, bg="#ffffff")
         win.title("Update")
         win.resizable(False, False)
         win.transient(root)
         win.protocol("WM_DELETE_WINDOW", self.no)
-        height = 100
-        cv = tk.Canvas(win, width=self.UW, height=height, bg="#ffffff",
+        cv = tk.Canvas(win, width=self.UW, height=10, bg="#ffffff",
                        highlightthickness=0, bd=0)
         cv.pack()
         mid = self.UW / 2
         cv.create_text(mid, 32, text="do u wanna update? :3", font=FONT, fill=INK)
-        Button(cv, mid - 92, 58, 84, "No", self.no)
-        Button(cv, mid + 8, 58, 84, "Yes", self.yes)
+        # release title wraps so the buttons go wherever it ends
+        name = cv.create_text(mid, 50, text=title, font=SMALL, fill=INK,
+                              width=self.UW - 40, justify="center", anchor="n")
+        by = cv.bbox(name)[3] + 22
+        Button(cv, mid - 92, by, 84, "No", self.no)
+        Button(cv, mid + 8, by, 84, "Yes", self.yes)
+        height = by + 24 + 18
+        cv.configure(height=height)
         root.update_idletasks()
         win.geometry(f"+{root.winfo_rootx() + (W - self.UW) // 2}"
                      f"+{root.winfo_rooty() + (H - height) // 2}")
@@ -514,7 +520,7 @@ class Launcher:
     def offer_update(self, rel):
         if self.busy or self.popup:
             return
-        UpdatePrompt(self.root, lambda: self.start_update(rel), lambda: self.set_auto(False))
+        UpdatePrompt(self.root, rel["title"], lambda: self.start_update(rel), lambda: self.set_auto(False))
 
     def start_update(self, rel):
         self.error("")

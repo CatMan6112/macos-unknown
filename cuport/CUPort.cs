@@ -46,8 +46,15 @@ namespace CUPort
         [DllImport(ObjC)] static extern IntPtr object_getClassName(IntPtr o);
         [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr Send(IntPtr o, IntPtr sel);
         [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr Send(IntPtr o, IntPtr sel, IntPtr a);
-        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern CGRect SendRect(IntPtr o, IntPtr sel);
-        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern CGRect SendRect(IntPtr o, IntPtr sel, CGRect r);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern CGRect SendRectArm(IntPtr o, IntPtr sel);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern CGRect SendRectArm(IntPtr o, IntPtr sel, CGRect r);
+        // intel returns big structs through a hidden pointer so rects need objc_msgSend_stret
+        // plain objc_msgSend crashes there as soon as the window gets clamped. arm64 has no stret
+        [DllImport(ObjC, EntryPoint = "objc_msgSend_stret")] static extern CGRect SendRectIntel(IntPtr o, IntPtr sel);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend_stret")] static extern CGRect SendRectIntel(IntPtr o, IntPtr sel, CGRect r);
+        static readonly bool Intel = RuntimeInformation.ProcessArchitecture == Architecture.X64;
+        static CGRect SendRect(IntPtr o, IntPtr sel) { return Intel ? SendRectIntel(o, sel) : SendRectArm(o, sel); }
+        static CGRect SendRect(IntPtr o, IntPtr sel, CGRect r) { return Intel ? SendRectIntel(o, sel, r) : SendRectArm(o, sel, r); }
         [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern void SetFrame(IntPtr o, IntPtr sel, CGRect r, bool display, bool animate);
 
         const ulong FullScreenMask = 1 << 14;  // NSWindowStyleMaskFullScreen
