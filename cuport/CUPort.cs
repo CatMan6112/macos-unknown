@@ -12,6 +12,7 @@
 // CUPORT_TEST set to 4:Windowed:1280x720;9:FullScreenWindow:1512x982 fakes options
 // menu SetResolution calls at those seconds
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -35,6 +36,44 @@ namespace CUPort
             saver.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(saver);
             saver.AddComponent<PauseSaver>();
+
+            if (MacMods.On())
+            {
+                var mods = new GameObject("CUPortMacMods");
+                mods.hideFlags = HideFlags.HideAndDontSave;
+                UnityEngine.Object.DontDestroyOnLoad(mods);
+                mods.AddComponent<TouchpadInventory>();
+            }
+
+            if (Environment.GetEnvironmentVariable("CUPORT_NOUPDATE") != "1")
+            {
+                var upd = new GameObject("CUPortUpdateCheck");
+                upd.hideFlags = HideFlags.HideAndDontSave;
+                UnityEngine.Object.DontDestroyOnLoad(upd);
+                upd.AddComponent<UpdateCheck>();
+            }
+        }
+    }
+
+    // the launchers MacOS mods box. read from launcher.json at startup so flipping it only needs a relaunch
+    // on unless the box says false and CUPORT_MACMODS=0 or 1 beats the file for tests
+    static class MacMods
+    {
+        public static bool On()
+        {
+            string env = Environment.GetEnvironmentVariable("CUPORT_MACMODS");
+            if (env == "0" || env == "1")
+                return env == "1";
+            try
+            {
+                string path = Path.Combine(Environment.GetEnvironmentVariable("HOME") ?? "",
+                    "Library/Application Support/macos-unknown/launcher.json");
+                return !Regex.IsMatch(File.ReadAllText(path), "\"macmods\"\\s*:\\s*false");
+            }
+            catch (Exception)
+            {
+                return true;
+            }
         }
     }
 
@@ -183,6 +222,223 @@ namespace CUPort
                 x = vis.x + Math.Floor((vis.w - fw) / 2), y = vis.y + Math.Floor((vis.h - fh) / 2) };
             SetFrame(w, S("setFrame:display:animate:"), r, true, false);
             return true;
+        }
+    }
+
+    // reads steams appinfo.vdf cache. steam keeps it fresh so a finder launch still sees updates
+    // same parser as patcher/cupatch/steaminfo.py so change both
+    static class AppInfo
+    {
+        const uint V28 = 0x07564428, V29 = 0x07564429;
+        const int EntryHead = 4 + 4 + 8 + 20 + 4 + 20;  // state/updated/token/sha1/change/sha1
+
+        public static string DefaultPath()
+        {
+            return Environment.GetEnvironmentVariable("CUPORT_APPINFO") ?? Path.Combine(
+                Environment.GetEnvironmentVariable("HOME") ?? "", "Library/Application Support/Steam/appcache/appinfo.vdf");
+        }
+
+        class Reader
+        {
+            readonly byte[] d;
+            readonly string[] keys;
+            int p;
+            public Reader(byte[] data, int pos, string[] k) { d = data; p = pos; keys = k; }
+
+            string CStr()
+            {
+                int end = Array.IndexOf(d, (byte)0, p);
+                string s = System.Text.Encoding.UTF8.GetString(d, p, end - p);
+                p = end + 1;
+                return s;
+            }
+
+            string Key()
+            {
+                if (keys == null) return CStr();
+                int i = (int)BitConverter.ToUInt32(d, p);
+                p += 4;
+                return keys[i];
+            }
+
+            public Dictionary<string, object> Section()
+            {
+                var o = new Dictionary<string, object>();
+                while (true)
+                {
+                    byte t = d[p++];
+                    if (t == 8) return o;
+                    string k = Key();
+                    if (t == 0) o[k] = Section();
+                    else if (t == 1) o[k] = CStr();
+                    else if (t == 2 || t == 4 || t == 6) { o[k] = BitConverter.ToInt32(d, p); p += 4; }
+                    else if (t == 7 || t == 10) { o[k] = BitConverter.ToUInt64(d, p); p += 8; }
+                    else throw new InvalidDataException("appinfo kv type " + t);
+                }
+            }
+        }
+
+        static object Get(object o, string key)
+        {
+            var dict = o as Dictionary<string, object>;
+            object v = null;
+            return dict != null && dict.TryGetValue(key, out v) ? v : null;
+        }
+
+        // public manifest gid for the depot or null if steam doesnt know
+        public static string PublicManifest(string path, uint appid, uint depot)
+        {
+            byte[] d = File.ReadAllBytes(path);
+            uint magic = BitConverter.ToUInt32(d, 0);
+            string[] keys = null;
+            int p;
+            if (magic == V29)
+            {
+                int table = (int)BitConverter.ToInt64(d, 8);
+                keys = new string[BitConverter.ToUInt32(d, table)];
+                int q = table + 4;
+                for (int i = 0; i < keys.Length; i++)
+                {
+                    int end = Array.IndexOf(d, (byte)0, q);
+                    keys[i] = System.Text.Encoding.UTF8.GetString(d, q, end - q);
+                    q = end + 1;
+                }
+                p = 16;
+            }
+            else if (magic == V28) p = 8;
+            else return null;
+
+            while (p + 8 <= d.Length)
+            {
+                uint aid = BitConverter.ToUInt32(d, p), size = BitConverter.ToUInt32(d, p + 4);
+                if (aid == 0) return null;
+                if (aid == appid)
+                {
+                    object info = new Reader(d, p + 8 + EntryHead, keys).Section();
+                    info = Get(info, "appinfo") ?? info;
+                    object m = Get(Get(Get(Get(info, "depots"), depot.ToString()), "manifests"), "public");
+                    // newer caches nest gid/size/download and older ones only have the gid
+                    object gid = m is string ? m : Get(m, "gid");
+                    return gid == null ? null : gid.ToString();
+                }
+                p += 8 + (int)size;
+            }
+            return null;
+        }
+    }
+
+    // native NSAlert through objc. blocks the frame til its answered
+    static class Alert
+    {
+        const string ObjC = "/usr/lib/libobjc.A.dylib";
+        [DllImport(ObjC)] static extern IntPtr objc_getClass(string name);
+        [DllImport(ObjC)] static extern IntPtr sel_registerName(string name);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr Send(IntPtr o, IntPtr sel);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr Send(IntPtr o, IntPtr sel, IntPtr a);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr SendBool(IntPtr o, IntPtr sel, bool a);
+
+        static IntPtr S(string n) { return sel_registerName(n); }
+
+        static IntPtr NSString(string s)
+        {
+            byte[] b = System.Text.Encoding.UTF8.GetBytes(s + "\0");
+            var h = GCHandle.Alloc(b, GCHandleType.Pinned);
+            try { return Send(objc_getClass("NSString"), S("stringWithUTF8String:"), h.AddrOfPinnedObject()); }
+            finally { h.Free(); }
+        }
+
+        // true when the first button got picked
+        public static bool Ask(string title, string body, string yes, string no)
+        {
+            IntPtr app = Send(objc_getClass("NSApplication"), S("sharedApplication"));
+            SendBool(app, S("activateIgnoringOtherApps:"), true);
+            IntPtr a = Send(Send(objc_getClass("NSAlert"), S("alloc")), S("init"));
+            Send(a, S("setMessageText:"), NSString(title));
+            Send(a, S("setInformativeText:"), NSString(body));
+            Send(a, S("addButtonWithTitle:"), NSString(yes));
+            Send(a, S("addButtonWithTitle:"), NSString(no));
+            long r = (long)Send(a, S("runModal"));
+            Send(a, S("release"));
+            return r == 1000;  // NSAlertFirstButtonReturn
+        }
+    }
+
+    // finder launches skip the launcher so nothing notices a steam update. lobbies kick old builds on the hash check
+    // CUPORT_NOUPDATE=1 turns it off and CUPORT_APPINFO points at a test appinfo.vdf
+    public class UpdateCheck : MonoBehaviour
+    {
+        const float WaitSeconds = 5f;  // let the window fix and the menu settle first
+        const string LauncherId = "dev.catman6112.macos-unknown";
+
+        string built, latest;
+
+        static void Log(string msg)
+        {
+            Debug.Log("[CUPort] " + msg);
+        }
+
+        void Start()
+        {
+            try
+            {
+                var json = File.ReadAllText(Path.Combine(Application.dataPath, "Resources/cuport.json"));
+                var ma = Regex.Match(json, "\"appid\"\\s*:\\s*(\\d+)");
+                var mm = Regex.Match(json, "\"manifest\"\\s*:\\s*\"(\\d+)\"");
+                if (!ma.Success || !mm.Success)
+                {
+                    Log("update check: build has no manifest, skipping");
+                    Destroy(gameObject);
+                    return;
+                }
+                uint appid = uint.Parse(ma.Groups[1].Value);
+                built = mm.Groups[1].Value;
+                // windows depot is one id above the app for both editions (EDITIONS in launcher.py)
+                latest = AppInfo.PublicManifest(AppInfo.DefaultPath(), appid, appid + 1);
+                Log("update check: built " + built + ", steam public " + (latest ?? "unknown"));
+                if (latest == null || latest == built)
+                    Destroy(gameObject);
+            }
+            catch (Exception e)
+            {
+                Log("update check failed: " + e.Message);
+                Destroy(gameObject);
+            }
+        }
+
+        void Update()
+        {
+            if (Time.realtimeSinceStartup < WaitSeconds || !Application.isFocused)
+                return;
+            enabled = false;
+            bool yes = Alert.Ask("Casualties: Unknown has an update",
+                "This copy is an older build than the one on Steam.",
+                "Update", "Not now");
+            Log("update check: player picked " + (yes ? "update" : "not now"));
+            if (yes && OpenLauncher())
+                Application.Quit();
+            Destroy(gameObject);
+        }
+
+        static bool OpenLauncher()
+        {
+            // bundle id finds the launcher anywhere. the name is for a copy launch services hasnt registered yet
+            foreach (var args in new[] { "-b " + LauncherId, "-a \"MacOS Unknown\"" })
+            {
+                try
+                {
+                    var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                        "/usr/bin/open", args + " --args --update") { UseShellExecute = false });
+                    p.WaitForExit(5000);
+                    if (p.HasExited && p.ExitCode == 0)
+                        return true;
+                }
+                catch (Exception e)
+                {
+                    Log("update check: open " + args + " failed: " + e.Message);
+                }
+            }
+            Log("update check: launcher not found");
+            return false;
         }
     }
 
@@ -461,6 +717,213 @@ namespace CUPort
             QualitySettings.vSyncCount = savedVsync;
             Application.targetFrameRate = savedFps;
             Debug.Log(string.Format("[CUPort] unpaused; vsync {0} cap {1}", savedVsync, savedFps));
+        }
+    }
+
+    // trackpad clicks have NSEvent subtype 3 (touch) and mouse clicks have 0. unity cant see it so
+    // an NSEvent local monitor catches the click before any Update and the swap lands on that same click
+    static class ClickSource
+    {
+        const string ObjC = "/usr/lib/libobjc.A.dylib";
+        const ulong LeftDownMask = 1 << 1, RightDownMask = 1 << 3;
+        const int SubtypeTouch = 3;
+
+        [DllImport(ObjC)] static extern IntPtr objc_getClass(string name);
+        [DllImport(ObjC)] static extern IntPtr sel_registerName(string name);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr Send(IntPtr o, IntPtr sel);
+        [DllImport(ObjC, EntryPoint = "objc_msgSend")] static extern IntPtr AddMonitor(IntPtr o, IntPtr sel, ulong mask, IntPtr block);
+        [DllImport("/usr/lib/libSystem.B.dylib")] static extern IntPtr dlsym(IntPtr handle, string name);
+
+        // NSEvent *(^)(NSEvent *) as a plain function. the block pointer comes first
+        delegate IntPtr Handler(IntPtr block, IntPtr ev);
+
+        static Handler keep;  // the gc must never collect this while appkit holds the pointer
+        static IntPtr subtypeSel;
+        static Action<bool> onClick;
+
+        // a global block is this struct. appkit never copies or frees it so one allocation for the whole process is fine
+        public static bool Watch(Action<bool> clicked)
+        {
+            IntPtr isa = dlsym(new IntPtr(-2), "_NSConcreteGlobalBlock");  // -2 is RTLD_DEFAULT
+            if (isa == IntPtr.Zero) return false;
+            onClick = clicked;
+            subtypeSel = sel_registerName("subtype");
+            keep = Invoke;
+
+            IntPtr desc = Marshal.AllocHGlobal(16);
+            Marshal.WriteInt64(desc, 0, 0);  // reserved
+            Marshal.WriteInt64(desc, 8, 32);  // size of the block
+            IntPtr block = Marshal.AllocHGlobal(32);
+            Marshal.WriteIntPtr(block, 0, isa);
+            Marshal.WriteInt32(block, 8, 1 << 28);  // BLOCK_IS_GLOBAL
+            Marshal.WriteInt32(block, 12, 0);
+            Marshal.WriteIntPtr(block, 16, Marshal.GetFunctionPointerForDelegate(keep));
+            Marshal.WriteIntPtr(block, 24, desc);
+
+            IntPtr monitor = AddMonitor(objc_getClass("NSEvent"),
+                sel_registerName("addLocalMonitorForEventsMatchingMask:handler:"), LeftDownMask | RightDownMask, block);
+            return monitor != IntPtr.Zero;
+        }
+
+        static IntPtr Invoke(IntPtr block, IntPtr ev)
+        {
+            // an exception getting back into appkit takes the whole game down
+            try
+            {
+                int sub = (int)((long)Send(ev, subtypeSel) & 0xffff);
+                onClick(sub == SubtypeTouch);
+            }
+            catch (Exception e)
+            {
+                Debug.Log("[CUPort] touchpad: click callback failed: " + e.Message);
+            }
+            return ev;
+        }
+    }
+
+    // inventory drag is on right click so a trackpad needs two finger clicks. a trackpad click swaps it with attack
+    // only cachedBinds changes so it never saves. no swap mid drag or the item sticks. off for pour dial/minigames/pause
+    public class TouchpadInventory : MonoBehaviour
+    {
+        const string Interact = "iteminteract", Attack = "attack";
+
+        Dictionary<string, KeyCode> binds;
+        FieldInfo cameraMain, radialOpen, woundView, liquid, minigameMain, minigameCurrent;
+        PropertyInfo paused;
+        bool swapped, logged, open, idle;
+        KeyCode oldInteract, oldAttack, newAttack;
+
+        static void Log(string msg)
+        {
+            Debug.Log("[CUPort] touchpad: " + msg);
+        }
+
+        void Start()
+        {
+            const BindingFlags S = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+            const BindingFlags I = BindingFlags.Public | BindingFlags.Instance;
+            Type keyBinds = Type.GetType("KeyBinds, Assembly-CSharp");
+            Type camera = Type.GetType("PlayerCamera, Assembly-CSharp");
+            Type minigame = Type.GetType("MinigameBase, Assembly-CSharp");
+            Type liquidType = Type.GetType("LiquidTransfer, Assembly-CSharp");
+            Type pause = Type.GetType("PauseHandler, Assembly-CSharp");
+            if (keyBinds != null)
+            {
+                var f = keyBinds.GetField("cachedBinds", S);
+                if (f != null) binds = f.GetValue(null) as Dictionary<string, KeyCode>;
+            }
+            if (camera != null)
+            {
+                cameraMain = camera.GetField("main", S);
+                radialOpen = camera.GetField("radialOpen", I);
+                woundView = camera.GetField("woundView", I);
+            }
+            if (minigame != null)
+            {
+                minigameMain = minigame.GetField("main", S);
+                minigameCurrent = minigame.GetField("currentMinigame", I);
+            }
+            if (liquidType != null) liquid = liquidType.GetField("instance", S);
+            if (pause != null) paused = pause.GetProperty("paused", S);
+            if (binds == null || cameraMain == null || radialOpen == null)
+            {
+                Log("game changed shape; off");
+                enabled = false;
+                return;
+            }
+            if (!ClickSource.Watch(Clicked))
+            {
+                Log("no click monitor; off");
+                enabled = false;
+                return;
+            }
+            Log("watching clicks");
+        }
+
+        static bool Alive(FieldInfo f, object owner)
+        {
+            return f != null && f.GetValue(owner) as UnityEngine.Object != null;
+        }
+
+        bool InInventory()
+        {
+            object cam = cameraMain.GetValue(null) as UnityEngine.Object;
+            if (cam == null) return false;
+            var wound = woundView != null ? woundView.GetValue(cam) as GameObject : null;
+            if (!(bool)radialOpen.GetValue(cam) && !(wound != null && wound.activeSelf)) return false;
+            if (paused != null && (bool)paused.GetValue(null, null)) return false;
+            if (Alive(liquid, null)) return false;
+            var mg = minigameMain != null ? minigameMain.GetValue(null) as UnityEngine.Object : null;
+            if (mg != null && Alive(minigameCurrent, mg)) return false;
+            return true;
+        }
+
+        // held or let go this frame. GetKeyDown already counts as held
+        static bool MouseBusy()
+        {
+            return Input.GetKey(KeyCode.Mouse0) || Input.GetKey(KeyCode.Mouse1)
+                || Input.GetKeyUp(KeyCode.Mouse0) || Input.GetKeyUp(KeyCode.Mouse1);
+        }
+
+        static KeyCode Get(Dictionary<string, KeyCode> d, string k)
+        {
+            KeyCode v;
+            return d.TryGetValue(k, out v) ? v : KeyCode.None;
+        }
+
+        // the settings menu re caches binds when you change one. if ours got
+        // overwritten theres nothing to put back
+        void CheckOwned()
+        {
+            if (swapped && (Get(binds, Interact) != KeyCode.Mouse0 || Get(binds, Attack) != newAttack))
+                swapped = false;
+        }
+
+        // late so every game Update this frame already read the binds. the click
+        // callback runs before the next frame and uses what this saw
+        void LateUpdate()
+        {
+            CheckOwned();
+            open = InInventory();
+            idle = !MouseBusy();
+            if (swapped && !open && idle) Restore();
+        }
+
+        // ClickSource calls this on every mouse down before the game sees it
+        void Clicked(bool trackpad)
+        {
+            if (!enabled || !idle) return;
+            CheckOwned();
+            if (trackpad && open && !swapped) Swap();
+            else if (!trackpad && swapped) Restore();
+        }
+
+        void Swap()
+        {
+            oldInteract = Get(binds, Interact);
+            oldAttack = Get(binds, Attack);
+            if (oldInteract == KeyCode.Mouse0 || oldInteract == KeyCode.None) return;  // nothing to fix
+            newAttack = oldAttack == KeyCode.Mouse0 ? oldInteract : oldAttack;
+            binds[Interact] = KeyCode.Mouse0;
+            binds[Attack] = newAttack;
+            swapped = true;
+            if (!logged)
+            {
+                Log(string.Format("trackpad click; {0} on Mouse0, {1} on {2}", Interact, Attack, newAttack));
+                logged = true;
+            }
+        }
+
+        void Restore()
+        {
+            binds[Interact] = oldInteract;
+            binds[Attack] = oldAttack;
+            swapped = false;
+        }
+
+        void OnDestroy()
+        {
+            if (swapped) Restore();
         }
     }
 }

@@ -12,6 +12,7 @@ HERE = pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(__file__).resolve().pa
 sys.path.insert(0, str(HERE))
 from cupatch import build as cubuild  # noqa: E402
 from cupatch import mods as modloader  # noqa: E402
+from cupatch import steaminfo  # noqa: E402
 
 ASSETS = HERE / "assets"
 STEAM = pathlib.Path.home() / "Library/Application Support/Steam"
@@ -432,6 +433,10 @@ class Launcher:
         cv.tag_bind(self.plugins_link, "<Enter>", lambda _e: cv.configure(cursor="pointinghand"))
         cv.tag_bind(self.plugins_link, "<Leave>", lambda _e: cv.configure(cursor=""))
         self.show_mods()
+        # touchpad fixes and such in CUPort.dll. the game reads this from launcher.json
+        # when it starts so theres nothing to rebuild
+        self.macmods_mark, _ = self.checkbox(54, "MacOS mods", lambda: self.set_macmods(not self.macmods_on()))
+        self.set_macmods(self.macmods_on())
 
         bw, gap = 84, 8
         bx = mid - (3 * bw + 2 * gap) / 2
@@ -456,7 +461,10 @@ class Launcher:
         self.popup = None
         self.watch_from = 0
         self.creep_to = 0.0
+        self.chain = "--update" in sys.argv[1:]
         self.pick(self.edition)
+        if self.chain:
+            root.after(800, self.resume_update)
         root.after(400, self.slide_dune, 0)
         root.after(200, self.tick)
         self.bundle = own_bundle()
@@ -486,19 +494,54 @@ class Launcher:
         d = depot_dir(self.edition)
         return any(d.glob("*_Data/globalgamemanagers"))
 
+    def depot_manifest(self):
+        # whats on disk. steam rotates console_log.txt on restart so launcher.json keeps a copy
+        app, depot = EDITIONS[self.edition]
+        known = self.settings.setdefault("depots", {})
+        m = depot_events(depot).get("manifest")
+        if m and known.get(str(depot)) != m:
+            known[str(depot)] = m
+            save_settings(self.settings)
+        if m or known.get(str(depot)):
+            return m or known[str(depot)]
+        # downloaded before launcher.json kept a record so trust what the build saw
+        info = built_info()
+        return info.get("manifest") if info and info.get("appid") == app else None
+
     def latest_manifest(self):
-        return depot_events(EDITIONS[self.edition][1]).get("manifest")
+        # what steam says is public right now. offline it falls back to whats on disk
+        app, depot = EDITIONS[self.edition]
+        return steaminfo.public_manifest(app, depot) or self.depot_manifest()
+
+    def state(self):
+        """downloaded/fresh/current. fresh means the depot is the newest build and current means the app is"""
+        ready = self.depot_ready()
+        latest = self.latest_manifest()
+        fresh = ready and (not latest or self.depot_manifest() == latest)
+        info = built_info()
+        current = bool(info and info.get("appid") == EDITIONS[self.edition][0] and APP.exists()
+                       and (not latest or info.get("manifest") == latest))
+        return ready, fresh, current
 
     def refresh(self):
-        ready = self.depot_ready()
-        info = built_info()
-        appid = EDITIONS[self.edition][0]
-        current = bool(info and info.get("appid") == appid and APP.exists()
-                       and (info.get("manifest") == self.latest_manifest() or not self.latest_manifest()))
+        _ready, fresh, current = self.state()
         idle = not self.busy
         self.b_files.set(idle)
-        self.b_build.set(idle and ready and not current)
+        self.b_build.set(idle and fresh and not current)
         self.b_play.set(idle and APP.exists())
+
+    def resume_update(self):
+        # the game opened us with --update so do whatever is left of get files/build/play
+        if not self.chain or self.busy or self.popup:
+            return
+        _ready, fresh, current = self.state()
+        if current:
+            self.chain = False
+            self.play()
+        elif fresh:
+            self.start_build()
+        else:
+            self.get_files()
 
     def open_popup(self, title):
         self.popup = ProgressWindow(self.root, title)
@@ -562,6 +605,16 @@ class Launcher:
             self.close_popup()
             self.error(f"Update failed: {msg}")
             self.refresh()
+
+    # macos mods
+
+    def macmods_on(self):
+        return self.settings.get("macmods", True)
+
+    def set_macmods(self, on):
+        self.settings["macmods"] = on
+        save_settings(self.settings)
+        self.cv.itemconfig(self.macmods_mark, state="normal" if on else "hidden")
 
     # mods
 
@@ -647,6 +700,7 @@ class Launcher:
         if ev.get("failed"):
             self.busy = None
             self.close_popup()
+            self.chain = False
             self.error("Steam is offline. Close Steam on any other computer signed in "
                        "to this account, then try again." if ev["failed"] == "offline"
                        else f"Steam could not download the files: {ev['failed']}")
@@ -655,7 +709,10 @@ class Launcher:
             self.popup.set(1.0)
             self.busy = None
             self.root.after(400, self.close_popup)
+            self.depot_manifest()  # records it before steams log rotates
             self.refresh()
+            if self.chain:
+                self.root.after(600, self.resume_update)
         elif ev.get("files"):
             d = depot_dir(self.edition)
             have = sum(1 for p in d.rglob("*") if p.is_file()) if d.exists() else 0
@@ -669,7 +726,8 @@ class Launcher:
         self.open_popup("Native app")
         self.creep_to = 0.0
         self.refresh()
-        ed, manifest = self.edition, self.latest_manifest()
+        # the manifest on disk since steams public one can be newer
+        ed, manifest = self.edition, self.depot_manifest()
         threading.Thread(target=self.build_thread, args=(ed, manifest), daemon=True).start()
 
     def build_thread(self, ed, manifest):
@@ -699,7 +757,10 @@ class Launcher:
             self.popup.set(1.0)
             self.root.after(400, self.close_popup)
             self.refresh()
+            if self.chain:
+                self.root.after(600, self.resume_update)
         else:
+            self.chain = False
             self.busy = None
             self.close_popup()
             self.error(f"Build failed: {msg}")
