@@ -148,7 +148,18 @@ def newer_release():
     if not zips or not ver(tag) or ver(tag) <= ver(VERSION):
         return None
     return {"tag": tag, "title": (rel.get("name") or "").strip() or tag,
+            "summary": summary(rel.get("body") or ""),
             "url": zips[0]["browser_download_url"], "size": zips[0].get("size") or 0}
+
+
+def summary(body, cap=300):
+    # first paragraph of the release notes without the markdown. long ones get cut so the popup stays small
+    para = body.replace("\r", "").strip().split("\n\n")[0]
+    para = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", para)
+    para = " ".join(para.replace("**", "").replace("`", "").split())
+    if len(para) > cap:
+        para = para[:cap].rsplit(" ", 1)[0] + ".."
+    return para
 
 
 def install_update(rel, bundle, progress):
@@ -345,7 +356,7 @@ class SteamNotice:
 class UpdatePrompt:
     UW = 280
 
-    def __init__(self, root, title, on_yes, on_no):
+    def __init__(self, root, title, text, on_yes, on_no):
         self.on_yes, self.on_no = on_yes, on_no
         self.win = win = tk.Toplevel(root, bg="#ffffff")
         win.title("Update")
@@ -361,6 +372,10 @@ class UpdatePrompt:
         name = cv.create_text(mid, 50, text=title, font=SMALL, fill=INK,
                               width=self.UW - 40, justify="center", anchor="n")
         by = cv.bbox(name)[3] + 22
+        if text:
+            notes = cv.create_text(mid, by - 10, text=text, font=SMALL, fill=INK,
+                                   width=self.UW - 40, justify="left", anchor="n")
+            by = cv.bbox(notes)[3] + 22
         Button(cv, mid - 92, by, 84, "No", self.no)
         Button(cv, mid + 8, by, 84, "Yes", self.yes)
         height = by + 24 + 18
@@ -575,7 +590,7 @@ class Launcher:
     def offer_update(self, rel):
         if self.busy or self.popup:
             return
-        UpdatePrompt(self.root, rel["title"], lambda: self.start_update(rel), lambda: self.set_auto(False))
+        UpdatePrompt(self.root, rel["title"], rel.get("summary", ""), lambda: self.start_update(rel), lambda: self.set_auto(False))
 
     def start_update(self, rel):
         self.error("")
