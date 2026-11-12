@@ -25,7 +25,7 @@ W, H = 440, 282
 INK, FILL, DIM, LINK = "#000000", "#0000cc", "#a0a0a0", "#0000ee"
 SITE = "https://catman6112.dev"
 
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 RELEASES = "https://api.github.com/repos/CatMan6112/macos-unknown/releases/latest"
 SETTINGS = pathlib.Path.home() / "Library/Application Support/macos-unknown/launcher.json"
 # python.org builds ship without CA certs, every mac has this one
