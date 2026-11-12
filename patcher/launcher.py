@@ -72,6 +72,12 @@ def built_info():
         return None
 
 
+def port_ok():
+    # an app from an older launcher has to be rebuilt before it can be played
+    info = built_info()
+    return bool(info) and info.get("port", 1) >= cubuild.PORT
+
+
 def load_settings():
     try:
         return json.loads(SETTINGS.read_text())
@@ -535,7 +541,7 @@ class Launcher:
         fresh = ready and (not latest or self.depot_manifest() == latest)
         info = built_info()
         current = bool(info and info.get("appid") == EDITIONS[self.edition][0] and APP.exists()
-                       and (not latest or info.get("manifest") == latest))
+                       and (not latest or info.get("manifest") == latest) and port_ok())
         return ready, fresh, current
 
     def refresh(self):
@@ -543,7 +549,7 @@ class Launcher:
         idle = not self.busy
         self.b_files.set(idle)
         self.b_build.set(idle and fresh and not current)
-        self.b_play.set(idle and APP.exists())
+        self.b_play.set(idle and APP.exists() and port_ok())
 
     def resume_update(self):
         # the game opened us with --update so do whatever is left of get files/build/play

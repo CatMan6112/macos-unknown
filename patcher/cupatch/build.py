@@ -15,6 +15,8 @@ from . import mods as modloader
 
 PAYLOAD = pathlib.Path(__file__).resolve().parent.parent / "payload"
 FULL, DEMO = 4576490, 4576510
+# bump when a launcher update changes how the app gets built. older apps have to be rebuilt before play
+PORT = 2
 KEEP = ("m_Dependencies", "m_NonModifiableTextures")
 # shader graphs got no metal build so each one gets swapped for its CUG/ port
 GRAPHS = """AberrationShader AlgaeShader BlueHeartPulseShader BonusPass CrystalShimmer DamageScreen
@@ -44,6 +46,13 @@ def check_version(data, want):
     have = next(iter(env.files.values())).unity_version
     if have != want:
         raise BuildError(f"game uses Unity {have}, this patcher supports {want}")
+
+
+def game_version(data):
+    env = UnityPy.load(str(data / "globalgamemanagers"))
+    for obj in env.objects:
+        if obj.type.name == "PlayerSettings":
+            return obj.read_typetree().get("bundleVersion")
 
 
 def swap_shaders(data, log):
@@ -170,12 +179,17 @@ def build(game, out, appid=FULL, manifest=None, log=print, mods=False):
         # finder launches start in / so steam_appid.txt never gets found and steam shits itself
         p["LSEnvironment"] = {"SteamAppId": str(appid), "SteamGameId": str(appid)}
         p["CFBundleName"] = p["CFBundleDisplayName"] = "Casualties Unknown"
+        # Application.version comes from here on mac and the shell says 1.0. the game warns
+        # about outdated lang files when it doesnt match the version in them
+        ver = game_version(D)
+        if ver:
+            p["CFBundleShortVersionString"] = ver
         info.write_bytes(plistlib.dumps(p))
         (R / "cuport.json").write_text(json.dumps({
             "appid": appid, "manifest": manifest, "unity": want,
             "source": str(pathlib.Path(game).resolve()),
             "built": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "unswapped_shaders": missing,
+            "unswapped_shaders": missing, "version": ver or "", "port": PORT,
         }, indent=1))
         modloader.configure(stage, mods)
 
