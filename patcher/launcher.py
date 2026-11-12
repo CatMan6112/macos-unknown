@@ -426,8 +426,8 @@ class Launcher:
         self.tick_mark, _ = self.checkbox(14, "Automatic updates", lambda: self.set_auto(not self.auto_update()))
         self.set_auto(self.auto_update())
         self.mods_mark, mods_label = self.checkbox(34, "Mod loader", lambda: self.toggle_mods())
-        # opens BepInEx/plugins, only there while the box is ticked
-        self.plugins_link = cv.create_text(cv.bbox(mods_label)[2] + 8, 34, text="plugins",
+        # opens the BepInEx folder and its only there while the box is ticked
+        self.plugins_link = cv.create_text(cv.bbox(mods_label)[2] + 8, 34, text="BepInEx",
                                            font=UNDER, fill=LINK, anchor="w")
         cv.tag_bind(self.plugins_link, "<Button-1>", lambda _e: self.open_plugins())
         cv.tag_bind(self.plugins_link, "<Enter>", lambda _e: cv.configure(cursor="pointinghand"))
@@ -435,7 +435,7 @@ class Launcher:
         self.show_mods()
         # touchpad fixes and such in CUPort.dll. the game reads this from launcher.json
         # when it starts so theres nothing to rebuild
-        self.macmods_mark, _ = self.checkbox(54, "MacOS mods", lambda: self.set_macmods(not self.macmods_on()))
+        self.macmods_mark, _ = self.checkbox(54, "MacOS enhancements", lambda: self.set_macmods(not self.macmods_on()))
         self.set_macmods(self.macmods_on())
 
         bw, gap = 84, 8
@@ -606,7 +606,7 @@ class Launcher:
             self.error(f"Update failed: {msg}")
             self.refresh()
 
-    # macos mods
+    # macos enhancements
 
     def macmods_on(self):
         return self.settings.get("macmods", True)
@@ -668,12 +668,12 @@ class Launcher:
         self.refresh()
 
     def open_plugins(self):
-        d = modloader.plugins_dir()
+        d = modloader.bepinex_dir()
         try:
             if not d.exists():
                 modloader.install_loader()
         except Exception as e:
-            self.error(f"Could not make the plugins folder: {e}")
+            self.error(f"Could not make the BepInEx folder: {e}")
             return
         subprocess.run(["open", str(d)])
 

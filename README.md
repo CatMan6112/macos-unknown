@@ -68,15 +68,15 @@ Evangelion references out of the way, congratulations. You now have hopefully su
 
 ## Mods
 
-kinda sorta works. tick **Mod loader** in the launcher and a **plugins** link shows up next to it. drop BepInEx 5 plugins in there and hit play. untick it and the game wont load any mod loader at all.
+kinda sorta works. tick **Mod loader** in the launcher and a **BepInEx** link shows up next to it. drop BepInEx 5 plugins in its plugins folder and hit play. untick it and the game wont load any mod loader at all.
 
 it runs a rebuilt BepInEx on newer MonoMod so it works native on apple silicon. most harmony plugins should be fine, stuff that pokes MonoMod directly might not be. C:U MP lobbies only let you in when your build matches the current steam version, and the game asks to update when it doesnt.
 
 i had to change BepInEx (MIT) and UnityDoorstop (LGPL-2.1) to get there. the changes and how to build them are in [third_party](third_party), the full changed source is attached to the release, and every license for the mod loader ships inside the app.
 
-## MacOS mods
+## MacOS enhancements
 
-little fixes for playing on a mac, on by default. untick **MacOS mods** in the launcher to turn them off, takes effect next time the game starts.
+little fixes for playing on a mac, on by default. untick **MacOS enhancements** in the launcher to turn them off, takes effect next time the game starts.
 
 - with the inventory or health panel open a plain trackpad click picks up and drags items, and a two finger click attacks. a real mouse keeps the normal controls even in the same session
 

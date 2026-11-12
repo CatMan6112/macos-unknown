@@ -55,7 +55,7 @@ namespace CUPort
         }
     }
 
-    // the launchers MacOS mods box. read from launcher.json at startup so flipping it only needs a relaunch
+    // the launchers MacOS enhancements box. read from launcher.json at startup so flipping it only needs a relaunch
     // on unless the box says false and CUPORT_MACMODS=0 or 1 beats the file for tests
     static class MacMods
     {

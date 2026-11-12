@@ -29,8 +29,8 @@ def available():
     return (PAYLOAD / "mods/libdoorstop.dylib").is_file()
 
 
-def plugins_dir():
-    return MODS / "BepInEx/plugins"
+def bepinex_dir():
+    return MODS / "BepInEx"
 
 
 def install_loader():
