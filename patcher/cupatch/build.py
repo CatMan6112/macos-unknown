@@ -177,7 +177,8 @@ def build(game, out, appid=FULL, manifest=None, log=print, mods=False):
         info = C / "Info.plist"
         p = plistlib.loads(info.read_bytes())
         # finder launches start in / so steam_appid.txt never gets found and steam shits itself
-        p["LSEnvironment"] = {"SteamAppId": str(appid), "SteamGameId": str(appid)}
+        # MONO_IOMAP makes the backslash save paths work like on windows. more in saves.py
+        p["LSEnvironment"] = {"SteamAppId": str(appid), "SteamGameId": str(appid), "MONO_IOMAP": "all"}
         p["CFBundleName"] = p["CFBundleDisplayName"] = "Casualties Unknown"
         # Application.version comes from here on mac and the shell says 1.0. the game warns
         # about outdated lang files when it doesnt match the version in them

@@ -12,6 +12,7 @@ HERE = pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(__file__).resolve().pa
 sys.path.insert(0, str(HERE))
 from cupatch import build as cubuild  # noqa: E402
 from cupatch import mods as modloader  # noqa: E402
+from cupatch import saves  # noqa: E402
 from cupatch import steaminfo  # noqa: E402
 
 ASSETS = HERE / "assets"
@@ -791,12 +792,19 @@ class Launcher:
 
     def play(self):
         # an app built before the box existed, or flipped while it failed
-        if modloader.enabled(APP) != self.mods_on():
+        # apps from before the save fix get MONO_IOMAP this way too cause it needs the same re sign
+        if modloader.enabled(APP) != self.mods_on() or not saves.fixed(APP):
             self.apply_mods(then=self.launch)
             return
         self.launch()
 
     def launch(self):
+        # move saves out of the old backslash files before the game looks for them
+        try:
+            saves.migrate(log=lambda m: print(m, file=sys.stderr))
+        except OSError as e:
+            self.error(f"Could not move your save into the save folder: {e}")
+            return
         if subprocess.run(["open", str(APP)]).returncode:
             self.error("The game would not start.")
 

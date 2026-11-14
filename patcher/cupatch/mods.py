@@ -72,6 +72,8 @@ def configure(app, on):
         env.update(DOORSTOP_ENABLED="1",
                    DOORSTOP_TARGET_ASSEMBLY=str(MODS / "BepInEx/core/BepInEx.Preloader.dll"),
                    DYLD_INSERT_LIBRARIES=str(MODS / "libdoorstop.dylib"))
+    # backslash save paths. more in saves.py
+    env["MONO_IOMAP"] = "all"
     p["LSEnvironment"] = env
     info.write_bytes(plistlib.dumps(p))
     meta = app / "Contents/Resources/cuport.json"
