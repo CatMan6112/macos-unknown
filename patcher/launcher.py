@@ -7,11 +7,13 @@ import ctypes, json, os, pathlib, queue, re, shutil, ssl, subprocess, sys, tempf
 import urllib.request
 import tkinter as tk
 import tkinter.font as tkfont
+from tkinter import filedialog
 
 HERE = pathlib.Path(getattr(sys, "_MEIPASS", pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(HERE))
 from cupatch import build as cubuild  # noqa: E402
 from cupatch import mods as modloader  # noqa: E402
+from cupatch import progress  # noqa: E402
 from cupatch import saves  # noqa: E402
 from cupatch import steaminfo  # noqa: E402
 
@@ -459,6 +461,10 @@ class Launcher:
         # when it starts so theres nothing to rebuild
         self.macmods_mark, _ = self.checkbox(54, "MacOS enhancements", lambda: self.set_macmods(not self.macmods_on()))
         self.set_macmods(self.macmods_on())
+        export = cv.create_text(10, 74, text="Export progress", font=UNDER, fill=LINK, anchor="w")
+        cv.tag_bind(export, "<Button-1>", lambda _e: self.export_progress())
+        cv.tag_bind(export, "<Enter>", lambda _e: cv.configure(cursor="pointinghand"))
+        cv.tag_bind(export, "<Leave>", lambda _e: cv.configure(cursor=""))
 
         bw, gap = 84, 8
         bx = mid - (3 * bw + 2 * gap) / 2
@@ -698,6 +704,27 @@ class Launcher:
             self.error(f"Could not make the BepInEx folder: {e}")
             return
         subprocess.run(["open", str(d)])
+
+    # progress
+
+    def export_progress(self):
+        # unlocks live in mac prefs so this writes them as a .reg for the windows game
+        path = filedialog.asksaveasfilename(parent=self.root, title="Export progress",
+                                            initialdir=str(pathlib.Path.home() / "Desktop"),
+                                            initialfile="CU progress.reg", defaultextension=".reg",
+                                            filetypes=[("Registry file", "*.reg")])
+        if not path:
+            return
+        try:
+            done = progress.export(path)
+        except OSError as e:
+            self.error(f"Could not write {pathlib.Path(path).name}: {e}")
+            return
+        if not done:
+            self.error("There's no progress to export yet.")
+            return
+        self.error("")
+        subprocess.run(["open", "-R", path])
 
     # get files
 
