@@ -79,6 +79,15 @@ i had to change BepInEx (MIT) and UnityDoorstop (LGPL-2.1) to get there. the cha
 little fixes for playing on a mac, on by default. untick **MacOS enhancements** in the launcher to turn them off, takes effect next time the game starts.
 
 - with the inventory or health panel open a plain trackpad click picks up and drags items, and a two finger click attacks. a real mouse keeps the normal controls even in the same session
+- bandages and syringes put on from the health panel grip with a plain click too, not a held right click
+- with the inventory shut a plain trackpad click on an item on the floor or in a hand slot picks it up. clicking anywhere else still attacks
+- mods made on windows sometimes bring shaders a mac cant run, which is why QoL Unknown's menu text was pink blocks. those get swapped for the game's own shader with the same name
+
+## Progress Transfer
+
+unlocks and your deepest layer arent in the save file, the game keeps them in the windows registry or in mac prefs. **Progress Transfer** in the launcher moves them both ways and only ever raises numbers, so nothing you unlocked gets locked again.
+
+**Export Progress** makes a zip with a .reg and a .bat. unzip it on the windows pc and run the .bat with the game closed. **Import Progress** first looks for the windows game in a CrossOver or Whisky bottle or a wine wrapper on this mac and takes your progress and newest run from there. otherwise it gives you a lil zip with a .bat that packs up your progress on the windows pc, and you bring that zip back and pick it.
 
 ## Issues & Contributions
 
