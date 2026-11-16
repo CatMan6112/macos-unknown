@@ -47,6 +47,13 @@ def install_loader():
     subprocess.run(["ditto", str(src / "licenses"), str(MODS / "licenses")], check=True, capture_output=True)
     for d in ("plugins", "patchers", "config"):
         (MODS / "BepInEx" / d).mkdir(exist_ok=True)
+    # ShaderSwap points mod materials with d3d11 only shaders at the games metal ones.
+    # its folder is ours so it gets replaced every time the loader goes on
+    own = MODS / "BepInEx/plugins/macos-unknown"
+    if own.exists():
+        shutil.rmtree(own)
+    own.mkdir()
+    shutil.copy2(PAYLOAD / "ShaderSwap.dll", own / "ShaderSwap.dll")
 
 
 def sign(app, on):
