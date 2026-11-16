@@ -18,6 +18,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace CUPort
 {
@@ -783,14 +784,22 @@ namespace CUPort
 
     // inventory drag is on right click so a trackpad needs two finger clicks. a trackpad click swaps it with attack
     // only cachedBinds changes so it never saves. no swap mid drag or the item sticks. off for pour dial/minigames/pause
+    // with the inventory shut it only swaps on a loose item in reach or a hud item slot. so floor pickup
+    // is one finger too and every other click still attacks
     public class TouchpadInventory : MonoBehaviour
     {
         const string Interact = "iteminteract", Attack = "attack";
+        const float Reach = 10f;  // Body.DoPickupCheck refuses anything further
 
         Dictionary<string, KeyCode> binds;
-        FieldInfo cameraMain, radialOpen, woundView, liquid, minigameMain, minigameCurrent;
+        FieldInfo cameraMain, radialOpen, woundView, cameraBody, liquid, minigameMain, minigameCurrent;
         PropertyInfo paused;
-        bool swapped, logged, open, idle;
+        Type itemType, invButton, itemLabel;
+        int itemMask = -1;
+        readonly List<RaycastResult> uiHits = new List<RaycastResult>();
+        PointerEventData pointer;
+        EventSystem pointerFor;
+        bool swapped, logged, loggedWorld, open, overItem, idle;
         KeyCode oldInteract, oldAttack, newAttack;
 
         static void Log(string msg)
@@ -817,7 +826,12 @@ namespace CUPort
                 cameraMain = camera.GetField("main", S);
                 radialOpen = camera.GetField("radialOpen", I);
                 woundView = camera.GetField("woundView", I);
+                cameraBody = camera.GetField("body", I);
             }
+            itemType = Type.GetType("Item, Assembly-CSharp");
+            invButton = Type.GetType("InvButton, Assembly-CSharp");
+            itemLabel = Type.GetType("ItemLabel, Assembly-CSharp");
+            itemMask = LayerMask.GetMask("Item");
             if (minigame != null)
             {
                 minigameMain = minigame.GetField("main", S);
@@ -845,17 +859,55 @@ namespace CUPort
             return f != null && f.GetValue(owner) as UnityEngine.Object != null;
         }
 
-        bool InInventory()
+        // Minigame is a plain class so this is a null check. bandage and syringe grip on attack
+        // so a swap left on here puts the grip on right click
+        bool InMinigame()
+        {
+            var mg = minigameMain != null ? minigameMain.GetValue(null) as UnityEngine.Object : null;
+            return mg != null && minigameCurrent != null && minigameCurrent.GetValue(mg) != null;
+        }
+
+        // the camera during normal play. null when something is in the way
+        object Playing()
         {
             object cam = cameraMain.GetValue(null) as UnityEngine.Object;
-            if (cam == null) return false;
+            if (cam == null) return null;
+            if (paused != null && (bool)paused.GetValue(null, null)) return null;
+            if (Alive(liquid, null) || InMinigame()) return null;
+            return cam;
+        }
+
+        bool InInventory(object cam)
+        {
             var wound = woundView != null ? woundView.GetValue(cam) as GameObject : null;
-            if (!(bool)radialOpen.GetValue(cam) && !(wound != null && wound.activeSelf)) return false;
-            if (paused != null && (bool)paused.GetValue(null, null)) return false;
-            if (Alive(liquid, null)) return false;
-            var mg = minigameMain != null ? minigameMain.GetValue(null) as UnityEngine.Object : null;
-            if (mg != null && Alive(minigameCurrent, mg)) return false;
-            return true;
+            return (bool)radialOpen.GetValue(cam) || (wound != null && wound.activeSelf);
+        }
+
+        // what PlayerCamera.TryPickupFromUI and TryPickupFromWorld would grab, minus items someone holds
+        bool OverItem(object cam)
+        {
+            var es = EventSystem.current;
+            if (es != null)
+            {
+                if (pointer == null || pointerFor != es)
+                {
+                    pointer = new PointerEventData(es);
+                    pointerFor = es;
+                }
+                pointer.position = Input.mousePosition;
+                uiHits.Clear();
+                es.RaycastAll(pointer, uiHits);
+                foreach (var hit in uiHits)
+                    if (hit.gameObject != null && ((invButton != null && hit.gameObject.GetComponent(invButton) != null)
+                        || (itemLabel != null && hit.gameObject.GetComponent(itemLabel) != null)))
+                        return true;
+            }
+            var main = Camera.main;
+            if (main == null || itemType == null || itemMask == 0) return false;
+            var col = Physics2D.OverlapPoint(main.ScreenToWorldPoint(Input.mousePosition), itemMask);
+            if (col == null || col.transform.parent != null || col.GetComponent(itemType) == null) return false;
+            var body = cameraBody != null ? cameraBody.GetValue(cam) as Component : null;
+            return body != null && Vector2.Distance(body.transform.position, col.transform.position) < Reach;
         }
 
         // held or let go this frame. GetKeyDown already counts as held
@@ -884,7 +936,9 @@ namespace CUPort
         void LateUpdate()
         {
             CheckOwned();
-            open = InInventory();
+            object cam = Playing();
+            open = cam != null && InInventory(cam);
+            overItem = cam != null && !open && OverItem(cam);
             idle = !MouseBusy();
             if (swapped && !open && idle) Restore();
         }
@@ -894,8 +948,13 @@ namespace CUPort
         {
             if (!enabled || !idle) return;
             CheckOwned();
-            if (trackpad && open && !swapped) Swap();
+            if (trackpad && (open || overItem) && !swapped) Swap();
             else if (!trackpad && swapped) Restore();
+            if (swapped && overItem && !loggedWorld)
+            {
+                Log("trackpad click on an item outside the inventory; picking it up");
+                loggedWorld = true;
+            }
         }
 
         void Swap()
