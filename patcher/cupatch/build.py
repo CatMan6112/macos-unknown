@@ -16,7 +16,7 @@ from . import mods as modloader
 PAYLOAD = pathlib.Path(__file__).resolve().parent.parent / "payload"
 FULL, DEMO = 4576490, 4576510
 # bump when a launcher update changes how the app gets built. older apps have to be rebuilt before play
-PORT = 2
+PORT = 3
 KEEP = ("m_Dependencies", "m_NonModifiableTextures")
 # shader graphs got no metal build so each one gets swapped for its CUG/ port
 GRAPHS = """AberrationShader AlgaeShader BlueHeartPulseShader BonusPass CrystalShimmer DamageScreen
