@@ -3,7 +3,7 @@
 when the dune lowky such a cutie you lowky jus pet
 """
 
-import ctypes, json, os, pathlib, queue, re, shutil, ssl, subprocess, sys, tempfile, threading, time
+import ctypes, json, os, pathlib, queue, re, shutil, ssl, subprocess, sys, tempfile, threading, time, zipfile
 import urllib.request
 import tkinter as tk
 import tkinter.font as tkfont
@@ -410,6 +410,50 @@ class UpdatePrompt:
         self.on_no()
 
 
+class Dialog:
+    # a line of text over a row of buttons. each button closes it before running
+    DW = 300
+
+    def __init__(self, root, title, text, buttons, bw=84):
+        self.win = win = tk.Toplevel(root, bg="#ffffff")
+        win.title(title)
+        win.resizable(False, False)
+        win.transient(root)
+        cv = tk.Canvas(win, width=self.DW, height=10, bg="#ffffff",
+                       highlightthickness=0, bd=0)
+        cv.pack()
+        mid = self.DW / 2
+        by = 18
+        if text:
+            body = cv.create_text(mid, 20, text=text, font=SMALL, fill=INK,
+                                  width=self.DW - 40, justify="center", anchor="n")
+            by = cv.bbox(body)[3] + 18
+        gap = 8
+        x = mid - (len(buttons) * bw + (len(buttons) - 1) * gap) / 2
+        for label, cmd in buttons:
+            Button(cv, x, by, bw, label, lambda c=cmd: self.go(c))
+            x += bw + gap
+        height = by + 24 + 18
+        cv.configure(height=height)
+        root.update_idletasks()
+        win.geometry(f"+{root.winfo_rootx() + (W - self.DW) // 2}"
+                     f"+{root.winfo_rooty() + max(0, (H - height) // 2)}")
+        # return picks the last button cause thats the yes or continue one
+        win.bind("<Return>", lambda _e: self.go(buttons[-1][1]))
+        win.bind("<Escape>", lambda _e: self.close())
+        win.grab_set()
+        win.after(50, lambda: (win.lift(), win.focus_force(), cv.focus_set()))
+
+    def close(self):
+        self.win.grab_release()
+        self.win.destroy()
+
+    def go(self, cmd):
+        self.close()
+        if cmd:
+            cmd()
+
+
 class Launcher:
     def __init__(self, root):
         self.root = root
@@ -461,8 +505,8 @@ class Launcher:
         # when it starts so theres nothing to rebuild
         self.macmods_mark, _ = self.checkbox(54, "MacOS enhancements", lambda: self.set_macmods(not self.macmods_on()))
         self.set_macmods(self.macmods_on())
-        export = cv.create_text(10, 74, text="Export progress", font=UNDER, fill=LINK, anchor="w")
-        cv.tag_bind(export, "<Button-1>", lambda _e: self.export_progress())
+        export = cv.create_text(10, 74, text="Progress Transfer", font=UNDER, fill=LINK, anchor="w")
+        cv.tag_bind(export, "<Button-1>", lambda _e: self.progress_transfer())
         cv.tag_bind(export, "<Enter>", lambda _e: cv.configure(cursor="pointinghand"))
         cv.tag_bind(export, "<Leave>", lambda _e: cv.configure(cursor=""))
 
@@ -707,16 +751,20 @@ class Launcher:
 
     # progress
 
+    def progress_transfer(self):
+        Dialog(self.root, "Progress Transfer", "",
+               [("Import Progress", self.import_progress), ("Export Progress", self.export_progress)], bw=124)
+
     def export_progress(self):
-        # unlocks live in mac prefs so this writes them as a .reg for the windows game
-        path = filedialog.asksaveasfilename(parent=self.root, title="Export progress",
+        # unlocks live in mac prefs so this zips them up with a .bat that puts them in the windows registry
+        path = filedialog.asksaveasfilename(parent=self.root, title="Export Progress",
                                             initialdir=str(pathlib.Path.home() / "Desktop"),
-                                            initialfile="CU progress.reg", defaultextension=".reg",
-                                            filetypes=[("Registry file", "*.reg")])
+                                            initialfile="CU progress.zip", defaultextension=".zip",
+                                            filetypes=[("Zip file", "*.zip")])
         if not path:
             return
         try:
-            done = progress.export(path)
+            done = progress.export_zip(path)
         except OSError as e:
             self.error(f"Could not write {pathlib.Path(path).name}: {e}")
             return
@@ -725,6 +773,91 @@ class Launcher:
             return
         self.error("")
         subprocess.run(["open", "-R", path])
+
+    def import_progress(self):
+        # crossover and friends keep the windows game on this mac so theres no zip to make
+        found = progress.find_wine()
+        if found:
+            Dialog(self.root, "Import Progress",
+                   "Found Casualties Unknown in a Wine bottle on this Mac. Import from it?",
+                   [("No", self.ask_zip), ("Yes", lambda: self.import_wine(found))])
+            return
+        self.ask_zip()
+
+    def ask_zip(self):
+        Dialog(self.root, "Import Progress", "Do you already have a windows progress .zip file?",
+               [("No", self.helper_notice), ("Yes", self.pick_progress_zip)])
+
+    def import_wine(self, found):
+        if progress.game_running(APP) or progress.wine_running():
+            self.error("Close the game first, then import again.")
+            return
+        try:
+            done, save = progress.import_wine(found)
+        except subprocess.CalledProcessError:
+            self.error("Could not save the progress into the game's settings.")
+            return
+        except OSError as e:
+            self.error(f"Could not copy the save over: {e}")
+            return
+        self.error("")
+        if done and save:
+            text = "Imported your progress and your run :3"
+        elif done:
+            text = "Imported your progress :3"
+        elif save:
+            text = "Imported your run :3"
+        else:
+            text = "This Mac already has all of that progress."
+        Dialog(self.root, "Import Progress", text, [("OK", None)])
+
+    def helper_notice(self):
+        Dialog(self.root, "Import Progress",
+               "You will receive a .zip file you can transfer to your windows laptop. "
+               "Read the readme.txt file inside the zip for more instructions.",
+               [("Cancel", None), ("Continue", self.save_helper)])
+
+    def save_helper(self):
+        path = filedialog.asksaveasfilename(parent=self.root, title="Import Progress",
+                                            initialdir=str(pathlib.Path.home() / "Desktop"),
+                                            initialfile="Get CU progress.zip", defaultextension=".zip",
+                                            filetypes=[("Zip file", "*.zip")])
+        if not path:
+            return
+        try:
+            progress.helper_zip(path)
+        except OSError as e:
+            self.error(f"Could not write {pathlib.Path(path).name}: {e}")
+            return
+        self.error("")
+        subprocess.run(["open", "-R", path])
+
+    def pick_progress_zip(self):
+        path = filedialog.askopenfilename(parent=self.root, title="Import Progress",
+                                          initialdir=str(pathlib.Path.home() / "Downloads"),
+                                          filetypes=[("Zip file", "*.zip")])
+        if not path:
+            return
+        # the game holds its prefs while it runs and writes them all back when it quits
+        if progress.game_running(APP):
+            self.error("Close the game first, then import again.")
+            return
+        name = pathlib.Path(path).name
+        try:
+            found, done = progress.import_zip(path)
+        except (OSError, ValueError, zipfile.BadZipFile):
+            self.error(f"{name} isn't a progress zip from the windows .bat.")
+            return
+        except subprocess.CalledProcessError:
+            self.error("Could not save the progress into the game's settings.")
+            return
+        if not found:
+            self.error(f"There's no progress in {name}.")
+            return
+        self.error("")
+        Dialog(self.root, "Import Progress",
+               "Imported your windows progress :3" if done else "This Mac already has all of that progress.",
+               [("OK", None)])
 
     # get files
 
